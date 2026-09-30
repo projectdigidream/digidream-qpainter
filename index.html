@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#1b1e24">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <title>qPainter</title>
+</head>
+<body>
+  <header id="top">
+    <select id="new" title="New texture">
+      <option value="">New…</option>
+      <option>16</option><option>32</option><option>64</option><option>128</option>
+      <option>256</option><option>512</option><option>1024</option><option value="custom">W×H…</option>
+    </select>
+    <button id="open" title="Open PNG / project (Ctrl+O)">Open</button>
+    <button id="recentbtn" title="Recent textures">Recent</button>
+    <button id="docname" title="Rename"></button>
+    <button id="save" title="Save to the linked file, or choose where (Ctrl+S)">Save</button>
+    <select id="saveas" title="Save to a new file">
+      <option value="">Save as…</option>
+      <option value="project">Project…</option>
+      <option value="png">PNG (flattened)…</option>
+    </select>
+    <select id="export" title="Export PNG">
+      <option value="">Export…</option>
+      <option value="1">PNG 1×</option><option value="2">PNG 2×</option><option value="4">PNG 4×</option>
+      <option value="8">PNG 8×</option><option value="16">PNG 16×</option>
+    </select>
+    <button id="undo" title="Undo (Ctrl+Z)">↶</button>
+    <button id="redo" title="Redo (Ctrl+Shift+Z)">↷</button>
+    <span class="sep"></span>
+    <label title="Wrap-around painting (W)"><input type="checkbox" id="wrap"> Wrap</label>
+    <label title="Show 3×3 tiles in wrap mode"><input type="checkbox" data-view="tiled" checked> Tiles</label>
+    <button id="offhalf" title="Offset layer by half (seam check)">Offset ½</button>
+    <select id="sym" title="Symmetry (S). Ctrl/⌘+click sets center">
+      <option value="none">No sym</option><option value="x">Mirror X</option><option value="y">Mirror Y</option>
+      <option value="xy">Mirror XY</option><option value="diag">Diagonal</option><option value="radial">Radial</option>
+    </select>
+    <input type="number" id="radial" min="2" max="12" title="Radial segments">
+    <button id="symc" title="Reset symmetry center">⊕</button>
+    <span class="sep"></span>
+    <label title="Only palette colors can be painted"><input type="checkbox" id="lock"> Lock</label>
+    <select id="snap" title="How off-palette blends snap when locked">
+      <option value="nearest">snap nearest</option><option value="dither">snap dither</option>
+    </select>
+    <span class="sep"></span>
+    <label><input type="checkbox" data-view="grid" checked> Grid</label>
+    <select data-view="tileGrid" title="Tile grid">
+      <option value="0">no tile grid</option><option>4</option><option>8</option><option>16</option><option>32</option><option>64</option>
+    </select>
+    <button id="fit" title="Fit (0)">Fit</button>
+    <button id="panel" title="Toggle panels (Tab)">☰</button>
+  </header>
+
+  <nav id="tools"></nav>
+
+  <main id="stage"><canvas id="view"></canvas></main>
+
+  <aside id="side">
+    <button id="closeside" title="Close (or swipe right / press back)">✕ Close</button>
+    <section id="opts">
+      <label data-for="pencil brush eraser dither shade noise replace smooth line rect ellipse">Size
+        <input type="range" data-opt="size" min="1" max="64"><output data-out="size"></output></label>
+      <label data-for="brush eraser">Hardness <input type="range" data-opt="hardness" min="0" max="1" step="0.05"></label>
+      <label data-for="pencil brush eraser line rect ellipse fill">Opacity <input type="range" data-opt="opacity" min="0.05" max="1" step="0.05"></label>
+      <label data-for="pencil brush eraser dither"><input type="checkbox" data-opt="pSize"> Pressure → size</label>
+      <label data-for="pencil brush eraser"><input type="checkbox" data-opt="pOpacity"> Pressure → opacity</label>
+      <label data-for="pencil"><input type="checkbox" data-opt="pixelPerfect"> Pixel-perfect</label>
+      <label data-for="fill"><input type="checkbox" data-opt="fillDither"> Fill with pattern</label>
+      <label data-for="dither fill gradient">Pattern
+        <select data-opt="pattern">
+          <option value="checker">Checker 50%</option><option value="bayer2">Bayer 2×2</option><option value="bayer4">Bayer 4×4</option>
+          <option value="bayer8">Bayer 8×8</option><option value="linesH">Lines —</option><option value="linesV">Lines |</option>
+          <option value="diag">Diagonal</option><option value="custom">Custom (click to edit)</option>
+        </select></label>
+      <div data-for="dither fill gradient" class="patrow"><canvas id="pat" width="8" height="8" title="Pattern preview; click cells to edit Custom"></canvas><small id="patwarn"></small></div>
+      <label data-for="dither fill gradient" title="Shift the pattern so it lines up differently">Offset X
+        <input type="range" data-opt="patX" min="0" max="7"><output data-out="patX"></output></label>
+      <label data-for="dither fill gradient">Offset Y
+        <input type="range" data-opt="patY" min="0" max="7"><output data-out="patY"></output></label>
+      <label data-for="dither fill">Density <input type="range" data-opt="density" min="0" max="1" step="0.0625"></label>
+      <label data-for="dither"><input type="checkbox" data-opt="pDensity"> Pressure → density</label>
+      <label data-for="dither fill"><input type="checkbox" data-opt="ditherBg"> Paint 2nd color too</label>
+      <label data-for="fill replace">Tolerance <input type="range" data-opt="tol" min="0" max="255"></label>
+      <label data-for="fill"><input type="checkbox" data-opt="contiguous"> Contiguous</label>
+      <label data-for="rect ellipse"><input type="checkbox" data-opt="filled"> Filled</label>
+      <label data-for="gradient"><input type="checkbox" data-opt="radialGrad"> Radial</label>
+      <label data-for="gradient noise"><input type="checkbox" data-opt="useRamp"> Use active ramp</label>
+      <label data-for="noise">Density <input type="range" data-opt="noise" min="0.02" max="1" step="0.02"></label>
+      <p data-for="shade" class="hint">Needs a ramp (Palette ▸ Ramp). Left = lighter, right/Shift = darker. One step per stroke.</p>
+      <p data-for="smooth" class="hint">Averages neighbours and snaps to the palette: hand anti-aliasing.</p>
+      <p data-for="move" class="hint">Drag selection (Alt = copy). No selection = offset whole layer with wrap.</p>
+      <div data-for="select move" class="row wrap">
+        <button data-act="copy">Copy</button><button data-act="cut">Cut</button><button data-act="paste">Paste</button>
+        <button data-act="clear">Delete</button><button data-act="h">Flip ↔</button><button data-act="v">Flip ↕</button>
+        <button data-act="rot">Rotate ⟳</button><button data-act="all">All</button><button data-act="none">None</button>
+      </div>
+    </section>
+    <section><h3>Palette</h3><div id="pal"></div></section>
+    <section><h3>Layers</h3><div id="layers"></div></section>
+    <section>
+      <h3>3D preview</h3>
+      <div class="row wrap">
+        <select data-p3="mesh"></select>
+        <select data-p3="repeat" title="Texture repeat"><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select>
+        <label><input type="checkbox" data-p3="nearest"> Nearest</label>
+        <label><input type="checkbox" data-p3="lit"> Lit</label>
+        <label><input type="checkbox" data-p3="rotate"> Spin</label>
+        <label title="Paint on the model with the current tool (right-drag / two fingers to orbit)"><input type="checkbox" data-p3="paint"> Paint</label>
+        <button id="model" title="Load your own .glb / .gltf / .obj model">Model…</button>
+        <input type="color" data-p3="bg" title="Background">
+      </div>
+      <div id="p3d"></div>
+    </section>
+  </aside>
+  <dialog id="recent">
+    <div class="row"><b>Recent textures</b><button id="recentclose" title="Close">✕</button></div>
+    <div id="recentlist"></div>
+  </dialog>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
