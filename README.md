@@ -206,14 +206,35 @@ The default palette is **Sweetie 16**.
 | **+** | Add the primary color to the palette |
 | **−** | Remove the primary color from the palette |
 | **Sort** | Sort swatches dark to light |
-| **Import** | Load a `.gpl` (GIMP), `.hex` (Lospec) or text file, or an image (its colors, up to 256) |
-| **.gpl / .hex** | Export the palette |
+| **Import…** | **Replace palette** or **Add to palette** from a `.gpl` (GIMP, Aseprite), `.hex` (Lospec), `.pal` (JASC), an image (its colours in order, exact up to 256), or a qPainter project's palette. Adding skips colours already there. |
+| **Export…** | The **whole palette**, or only the **colours used in the texture** (every layer and frame; palette colours first, in palette order, then any off-palette ones), as `.gpl`, `.hex`, `.pal`, or a `.png` swatch strip (one pixel per colour, Lospec's PNG format). |
 | **Extract** | Replace the palette with the image's colors, reduced to *N* colors (median cut) if there are more |
 | **Remap…** | Convert the current layer to the palette: **nearest**, **ordered dither** (Bayer 4×4), or **Floyd–Steinberg** |
 
 - **Drag a swatch** onto another to reorder the palette.
 - The line under the palette shows how many colors the image uses, how many are in the palette, and how many pixels are **off-palette**. Use it to stay within your color budget.
 - Palettes are a great fit for [Lospec](https://lospec.com/palette-list): download any palette as `.hex` and import it.
+
+### Palette files
+
+**Export…** saves either set of colours:
+
+- **Whole palette**: every swatch, in palette order.
+- **Colours used in the texture**: only the colours that actually appear, looking at every layer and every frame (hidden layers are skipped, and so are transparent pixels). Palette colours come first, in palette order, followed by any off-palette colours in the order they first appear. Use it to hand over exactly the colours a finished texture needs, or to check what's really in it.
+
+**Import…** reads a palette from a file and either **replaces** the palette or **adds** to it (colours already in the palette are skipped).
+
+| Format | Export | Import | Notes |
+|---|---|---|---|
+| `.gpl` | ✓ | ✓ | GIMP palette; also Aseprite, Krita, Inkscape. Named after the texture. |
+| `.hex` | ✓ | ✓ | One `rrggbb` per line: Lospec's download format. |
+| `.pal` | ✓ | ✓ | JASC-PAL: Aseprite, Paint Shop Pro, many pixel-art tools. |
+| `.png` | ✓ | ✓ | A swatch strip, one pixel per colour (Lospec's PNG). On import, any image works: its colours in the order they appear, exact up to 256 (more are reduced with median cut). |
+| `.texproj.json` | — | ✓ | Takes the palette of another qPainter project. |
+
+Palettes always hold opaque colours; the alpha channel isn't stored.
+
+**Import an image** versus **Extract**: Import reads *another* file. Extract replaces the palette with the colours of *this* texture's current frame, and asks how many to keep.
 
 ### Palette lock
 
@@ -439,7 +460,7 @@ In browsers without a save-file dialog (Firefox, Safari), Save and Export downlo
 | What | Where |
 |---|---|
 | **PNG export** | A single-layer texture at 1× exports its exact pixel values, including partial transparency. |
-| **Palette files** | `.gpl` and `.hex`, import and export. |
+| **Palette files** | `.gpl`, `.hex`, `.pal` and `.png` swatch strips, import and export (whole palette or just the colours used). |
 | **3D models** | `.glb`, single-file `.gltf`, `.obj` via **Model…** (not stored in the project). |
 
 ---
@@ -510,9 +531,16 @@ On macOS, ⌘ works wherever Ctrl is listed.
 ### Recolor an existing texture to a fixed palette
 
 1. **Open** the PNG.
-2. **Import** the target palette (`.hex` from Lospec, or `.gpl`).
+2. **Import… → Replace palette** with the target palette (`.hex` from Lospec, `.gpl`, `.pal`, or a swatch PNG).
 3. **Remap… → Floyd–Steinberg** for photos and gradients, **ordered dither** for a retro look, or **nearest** for flat art.
 4. Turn on **Lock** so any touch-ups stay in the palette.
+
+### Keep a set of textures on one palette
+
+1. Finish the first texture, then **Export… → Colours used in the texture → .gpl** (or `.pal` for other pixel-art tools).
+2. In each new texture, **Import… → Replace palette** with that file, and turn on **Lock**.
+3. For a texture that needs a few extra shades, **Import… → Add to palette**: it merges the shared colours in without duplicating any.
+4. Before shipping, check the counter under the palette: *off-palette* should be 0.
 
 ### Two-tone dither transition
 
@@ -533,6 +561,7 @@ On macOS, ⌘ works wherever Ctrl is listed.
 | Problem | Fix |
 |---|---|
 | Painting does nothing | A selection is probably active: painting is limited to it. Press **Esc** to deselect. Also check that the active layer is visible. |
+| An imported image gave a palette with fewer colours than it has | Images with more than 256 colours are reduced to 256 with median cut. For an exact palette, import a palette file or a swatch PNG instead. |
 | Shade brush does nothing | The pixels' colors must be part of a ramp. Create one with **Hue-shift** or **Lerp**. |
 | Colors change when I paint | **Lock** is on: colors are snapped into the palette. Add the color with **+**, or turn Lock off. |
 | Dither looks broken at the seam | The texture size must be a multiple of the pattern size (watch for the ⚠ note). Use 2/4/8-px patterns on power-of-two textures. |

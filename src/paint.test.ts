@@ -213,3 +213,15 @@ test("sky: matches the DoomNet engine's own mapping and its docs/SKY.md", async 
     }
   expect(compared).toBe(600); // the engine's code really was compared
 });
+
+test('palette files round-trip, and "used colours" lists palette colours first, in palette order', async () => {
+  const { parsePalette, toGpl, toHex, toPal, usedColors } = await import('./palette');
+  const pal: RGBA[] = [[26, 28, 44, 255], [255, 0, 0, 255], [0, 128, 255, 255]];
+  for (const text of [toGpl(pal, 'x'), toHex(pal), toPal(pal)]) expect(parsePalette(text)).toEqual(pal);
+  expect(parsePalette(JSON.stringify({ w: 1, palette: pal }))).toEqual(pal); // a qPainter project
+  expect(parsePalette('JASC-PAL\r\n0100\r\n2\r\n1 2 3\r\n4 5 6\r\n')).toEqual([[1, 2, 3, 255], [4, 5, 6, 255]]);
+  // frame 1 uses blue then an off-palette green; frame 2 uses red; a transparent pixel doesn't count
+  const f1 = new Uint8ClampedArray([0, 128, 255, 255, 9, 200, 9, 255, 255, 0, 0, 0]);
+  const f2 = new Uint8ClampedArray([255, 0, 0, 255]);
+  expect(usedColors(pal, [f1, f2])).toEqual([[255, 0, 0, 255], [0, 128, 255, 255], [9, 200, 9, 255]]);
+});

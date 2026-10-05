@@ -9,12 +9,13 @@ import type { RGBA } from './paint';
 // or a content:// URI from Android's system picker (FilesPlugin.java). Both survive in IndexedDB.
 
 export type FileRef = FileSystemFileHandle | { uri: string };
-export type FileKind = 'project' | 'png' | 'gpl' | 'hex';
+export type FileKind = 'project' | 'png' | 'gpl' | 'hex' | 'pal';
 const KINDS: Record<FileKind, { mime: string; ext: string; desc: string }> = {
   project: { mime: 'application/json', ext: '.texproj.json', desc: 'Texture project' },
   png: { mime: 'image/png', ext: '.png', desc: 'PNG image' },
   gpl: { mime: 'application/octet-stream', ext: '.gpl', desc: 'GIMP palette' },
   hex: { mime: 'application/octet-stream', ext: '.hex', desc: 'Hex palette' },
+  pal: { mime: 'application/octet-stream', ext: '.pal', desc: 'JASC palette' },
 };
 
 type NativeFiles = {
@@ -27,7 +28,7 @@ type NativeFiles = {
 };
 const Files = registerPlugin<NativeFiles>('Files');
 const native = Capacitor.isNativePlatform();
-const w = window as any; // File System Access API isn't in TS's DOM types yet
+const w = globalThis as any; // File System Access API isn't in TS's DOM types yet
 const aborted = (e: unknown) => (e as Error)?.name === 'AbortError';
 
 const toB64 = (b: Blob) => new Promise<string>((res) => {

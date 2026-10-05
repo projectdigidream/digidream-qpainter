@@ -7,13 +7,48 @@ export const hex = (c: RGBA) => '#' + c.slice(0, 3).map((v) => v.toString(16).pa
 export const fromHex = (h: string): RGBA => [1, 3, 5].map((i) => parseInt(h.replace('#', '').padStart(7, '#').slice(i, i + 2), 16)).concat(255) as RGBA;
 
 /** .gpl (GIMP) or .hex (Lospec, one rrggbb per line). */
+/** .gpl (GIMP / Aseprite), JASC .pal, a qPainter project (.json: its palette), or .hex (Lospec, one rrggbb per line). */
 export function parsePalette(text: string): RGBA[] {
-  if (text.startsWith('GIMP Palette'))
-    return text.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(\d+)/)).filter(Boolean).map((m) => [+m![1], +m![2], +m![3], 255]);
+  const rgbLines = (lines: string[]) =>
+    lines.map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(\d+)/)).filter(Boolean).map((m) => [+m![1], +m![2], +m![3], 255] as RGBA);
+  if (text.startsWith('GIMP Palette')) return rgbLines(text.split('\n'));
+  if (text.startsWith('JASC-PAL')) return rgbLines(text.split(/\r?\n/).slice(3)); // header, version, count
+  if (text.trimStart().startsWith('{')) {
+    const p = JSON.parse(text).palette;
+    return Array.isArray(p) ? p.map((c: number[]) => [c[0], c[1], c[2], 255] as RGBA) : [];
+  }
   return text.split(/\s+/).filter((l) => /^#?[0-9a-f]{6}$/i.test(l)).map(fromHex);
 }
-const toGpl = (p: RGBA[]) => 'GIMP Palette\nName: texture\n#\n' + p.map((c) => `${c[0]} ${c[1]} ${c[2]}\t${hex(c)}`).join('\n') + '\n';
-const toHex = (p: RGBA[]) => p.map((c) => hex(c).slice(1)).join('\n') + '\n';
+export const toGpl = (p: RGBA[], name = 'texture') => `GIMP Palette\nName: ${name}\nColumns: 8\n#\n` + p.map((c) => `${c[0]} ${c[1]} ${c[2]}\t${hex(c)}`).join('\n') + '\n';
+export const toHex = (p: RGBA[]) => p.map((c) => hex(c).slice(1)).join('\n') + '\n';
+export const toPal = (p: RGBA[]) => `JASC-PAL\r\n0100\r\n${p.length}\r\n` + p.map((c) => `${c[0]} ${c[1]} ${c[2]}`).join('\r\n') + '\r\n';
+/** A swatch strip: one pixel per colour, in order (Lospec's PNG palettes). */
+function toPng(p: RGBA[]): Promise<Blob> {
+  const c = Object.assign(document.createElement('canvas'), { width: Math.max(1, p.length), height: 1 });
+  const img = new ImageData(c.width, 1);
+  p.forEach((col, i) => img.data.set([col[0], col[1], col[2], 255], i * 4));
+  c.getContext('2d')!.putImageData(img, 0, 0);
+  return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('PNG encoding failed'))), 'image/png'));
+}
+
+/**
+ * Colours the texture actually uses (opaque pixels of `images`): the palette's own colours first, in palette
+ * order, then any off-palette ones in the order they're first met.
+ */
+export function usedColors(palette: RGBA[], images: Uint8ClampedArray[]): RGBA[] {
+  const key = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b, seen = new Map<number, RGBA>();
+  for (const d of images) for (let i = 0; i < d.length; i += 4) if (d[i + 3] >= 128) {
+    const k = key(d[i], d[i + 1], d[i + 2]);
+    if (!seen.has(k)) seen.set(k, [d[i], d[i + 1], d[i + 2], 255]);
+  }
+  const inPal = palette.filter((c) => seen.delete(key(c[0], c[1], c[2])));
+  return [...inPal, ...seen.values()];
+}
+/** Every frame of the doc, flattened. */
+function framePixels(doc: Doc): Uint8ClampedArray[] {
+  const c = document.createElement('canvas');
+  return Array.from({ length: doc.frames }, (_, k) => { doc.composite(k, c); return c.getContext('2d')!.getImageData(0, 0, doc.w, doc.h).data; });
+}
 
 function rgb2hsv([r, g, b]: RGBA): [number, number, number] {
   r /= 255; g /= 255; b /= 255;
@@ -65,8 +100,14 @@ export function renderPalette(el: HTMLElement, doc: Doc, refresh: () => void) {
       <button id="add" title="Add primary to palette">+</button>
       <button id="del" title="Remove primary from palette">−</button>
       <button id="sort" title="Sort by lightness">Sort</button>
-      <button id="imp" title="Import .gpl / .hex / image">Import</button>
-      <button id="gpl">.gpl</button><button id="hexb">.hex</button>
+      <select id="pimp" title="Load colours from a palette file (.gpl .hex .pal), an image, or a qPainter project">
+        <option value="">Import…</option><option value="replace">Replace palette…</option><option value="add">Add to palette…</option>
+      </select>
+      <select id="pexp" title="Save the palette, or just the colours this texture uses (all layers and frames)">
+        <option value="">Export…</option>
+        <optgroup label="Whole palette"><option value="all:gpl">.gpl (GIMP, Aseprite)</option><option value="all:hex">.hex (Lospec)</option><option value="all:pal">.pal (JASC)</option><option value="all:png">.png swatches</option></optgroup>
+        <optgroup label="Colours used in the texture"><option value="used:gpl">.gpl (GIMP, Aseprite)</option><option value="used:hex">.hex (Lospec)</option><option value="used:pal">.pal (JASC)</option><option value="used:png">.png swatches</option></optgroup>
+      </select>
       <button id="ext" title="Replace palette with colors from the image">Extract</button>
       <select id="remap" title="Quantize active layer to palette">
         <option value="">Remap…</option><option value="nearest">nearest</option><option value="ordered">ordered dither</option><option value="fs">Floyd–Steinberg</option>
@@ -110,13 +151,31 @@ export function renderPalette(el: HTMLElement, doc: Doc, refresh: () => void) {
   $('add').onclick = () => { addColors([opts.primary]); refresh(); };
   $('del').onclick = () => { doc.palette = doc.palette.filter((c) => !eq(c, opts.primary)); refresh(); };
   $('sort').onclick = () => { doc.palette.sort((a, b) => lum(a) - lum(b)); refresh(); };
-  $('gpl').onclick = () => saveAs(new Blob([toGpl(doc.palette)]), 'palette', 'gpl').catch((e) => alert(e.message));
-  $('hexb').onclick = () => saveAs(new Blob([toHex(doc.palette)]), 'palette', 'hex').catch((e) => alert(e.message));
-  $('imp').onclick = async () => {
-    const f = await pickFile('.gpl,.hex,.txt,image/*');
+  $('pexp').onchange = async () => {
+    const [which, fmt] = $('pexp').value.split(':') as ['all' | 'used', 'gpl' | 'hex' | 'pal' | 'png'];
+    $('pexp').value = '';
+    if (!fmt) return;
+    const cols = which === 'used' ? usedColors(doc.palette, framePixels(doc)) : doc.palette;
+    if (!cols.length) return alert('The texture has no opaque pixels yet, so it uses no colours.');
+    const name = `${doc.name}-${which === 'used' ? 'used' : 'palette'}`;
+    const blob = fmt === 'png' ? await toPng(cols) : new Blob([fmt === 'gpl' ? toGpl(cols, name) : fmt === 'hex' ? toHex(cols) : toPal(cols)]);
+    saveAs(blob, name, fmt).catch((e) => alert(e.message));
+  };
+  $('pimp').onchange = async () => {
+    const mode = $('pimp').value;
+    $('pimp').value = '';
+    if (!mode) return;
+    const f = await pickFile('.gpl,.hex,.pal,.txt,.json,image/*');
     if (!f) return;
-    const p = f.type.startsWith('image/') ? extractPalette(await blobToImageData(f), 256) : parsePalette(await f.text());
-    if (p.length) { doc.palette = p; refresh(); }
+    try {
+      // an image's colours in the order they appear (exact up to 256, median cut beyond)
+      const p = f.type.startsWith('image/') ? extractPalette(await blobToImageData(f), 256) : parsePalette(await f.text());
+      if (!p.length) return alert(`No colours found in ${f.name}.`);
+      if (mode === 'replace') doc.palette = p; else addColors(p);
+      refresh();
+    } catch (e) {
+      alert(`Couldn't read ${f.name}: ${(e as Error).message}`);
+    }
   };
   $('ext').onclick = () => {
     const n = +(prompt('Max colors', String(Math.max(2, doc.palette.length))) ?? 0);
