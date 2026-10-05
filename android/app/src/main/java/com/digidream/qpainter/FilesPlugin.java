@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
+import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
 import android.util.Base64;
 import androidx.activity.result.ActivityResult;
@@ -79,6 +81,86 @@ public class FilesPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("Couldn't read file: " + e.getMessage());
         }
+    }
+
+    // ---- folders: export a sky into a game module (assets/textures/*.png + module.txt) ----
+
+    /** Shows the folder picker. Resolves {uri} (the folder, with lasting read/write access) or {} if cancelled. */
+    @PluginMethod
+    public void pickFolder(PluginCall call) {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        String initial = call.getString("initial");
+        if (initial != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) i.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse(initial));
+        startActivityForResult(call, i, "folderPicked");
+    }
+
+    @ActivityCallback
+    private void folderPicked(PluginCall call, ActivityResult result) {
+        Uri uri = picked(result);
+        JSObject o = new JSObject();
+        if (uri != null) o.put("uri", uri.toString());
+        call.resolve(o);
+    }
+
+    /** Text of `path` (like "module.txt") inside a picked folder: {text}, or {} if there's no such file. */
+    @PluginMethod
+    public void readText(PluginCall call) {
+        try {
+            Uri doc = resolve(Uri.parse(call.getString("tree")), call.getString("path"), false, null);
+            JSObject o = new JSObject();
+            if (doc != null) {
+                try (InputStream in = getContext().getContentResolver().openInputStream(doc)) {
+                    ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                    byte[] chunk = new byte[65536];
+                    for (int n; (n = in.read(chunk)) > 0; ) buf.write(chunk, 0, n);
+                    o.put("text", buf.toString("UTF-8"));
+                }
+            }
+            call.resolve(o);
+        } catch (Exception e) {
+            call.reject("Couldn't read: " + e.getMessage());
+        }
+    }
+
+    /** Writes `data` (base64) to `path` inside a picked folder, creating folders and the file as needed. */
+    @PluginMethod
+    public void writePath(PluginCall call) {
+        try {
+            Uri doc = resolve(Uri.parse(call.getString("tree")), call.getString("path"), true, call.getString("mime", "application/octet-stream"));
+            write(doc, call.getString("data", ""));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Couldn't write " + call.getString("path") + ": " + e.getMessage());
+        }
+    }
+
+    /** The document at a slash-separated path under a tree; with `create`, missing folders and the file are made. */
+    private Uri resolve(Uri tree, String path, boolean create, String mime) throws Exception {
+        String parent = DocumentsContract.getTreeDocumentId(tree);
+        String[] parts = path.split("/");
+        for (int i = 0; i < parts.length; i++) {
+            boolean last = i == parts.length - 1;
+            String id = child(tree, parent, parts[i]);
+            if (id == null) {
+                if (!create) return null;
+                Uri made = DocumentsContract.createDocument(getContext().getContentResolver(),
+                    DocumentsContract.buildDocumentUriUsingTree(tree, parent),
+                    last ? mime : DocumentsContract.Document.MIME_TYPE_DIR, parts[i]);
+                if (made == null) throw new Exception("couldn't create " + parts[i]);
+                id = DocumentsContract.getDocumentId(made);
+            }
+            parent = id;
+        }
+        return DocumentsContract.buildDocumentUriUsingTree(tree, parent);
+    }
+
+    private String child(Uri tree, String parentId, String name) {
+        Uri kids = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId);
+        String[] cols = { DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME };
+        try (Cursor c = getContext().getContentResolver().query(kids, cols, null, null, null)) {
+            while (c != null && c.moveToNext()) if (name.equals(c.getString(1))) return c.getString(0);
+        }
+        return null;
     }
 
     private Uri picked(ActivityResult result) {

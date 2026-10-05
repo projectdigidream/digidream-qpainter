@@ -1,6 +1,7 @@
 import type { Doc } from './doc';
 import type { P, Tool } from './tools';
 import { opts } from './tools';
+import { FACES, STRIP_HORIZON, faceRects, type SkyKind } from './sky';
 
 export const viewOpts = { grid: true, tileGrid: 0, tiled: true };
 
@@ -17,6 +18,10 @@ export class View {
   private queued = false;
   space = false;
   private fitted = false;
+
+  /** What to draw (the current frame, or the playing animation) and an optional onion-skin frame on top. */
+  image = (): HTMLCanvasElement => this.doc().comp;
+  onion = (): HTMLCanvasElement | null => null;
 
   constructor(private cv: HTMLCanvasElement, private doc: () => Doc, private tool: () => Tool, private onSymCenter: (x: number, y: number) => void) {
     this.g = cv.getContext('2d')!;
@@ -113,6 +118,53 @@ export class View {
     requestAnimationFrame(() => { this.queued = false; this.draw(); });
   }
 
+  /** Skybox guides: cube faces outlined and labelled with the unused area dimmed; panoramas get horizon and compass lines. */
+  private skyGuides(t: SkyKind, W: number, H: number) {
+    const { g, ox, oy, zoom: z } = this, d = this.doc();
+    g.save();
+    g.font = '600 12px system-ui, sans-serif';
+    g.textBaseline = 'top';
+    const label = (text: string, x: number, y: number) => {
+      g.fillStyle = 'rgba(0,0,0,0.55)';
+      g.fillRect(x, y, g.measureText(text).width + 8, 17);
+      g.fillStyle = '#fff';
+      g.fillText(text, x + 4, y + 2);
+    };
+    if (t === 'cube') {
+      const rects = faceRects(t, d.w);
+      // dim everything that isn't a face (the empty corners of a cross)
+      g.fillStyle = 'rgba(0,0,0,0.45)';
+      g.beginPath();
+      g.rect(ox, oy, W, H);
+      for (const r of rects) g.rect(ox + r.x * z, oy + r.y * z, r.w * z, r.h * z);
+      g.fill('evenodd');
+      g.strokeStyle = 'rgba(255,200,60,0.9)';
+      rects.forEach((r, i) => {
+        g.strokeRect(Math.round(ox + r.x * z) + 0.5, Math.round(oy + r.y * z) + 0.5, Math.round(r.w * z), Math.round(r.h * z));
+        if (r.w * z > 50) label(FACES[i].toUpperCase(), ox + r.x * z + 4, oy + r.y * z + 4);
+      });
+    } else {
+      // the engine's compass: a panorama's centre is north, a strip starts at north on its left edge;
+      // both run clockwise (north, east, south, west)
+      const repeat = d.settings.skyParams.repeat, horizon = t === 'panorama' ? 0.5 : STRIP_HORIZON;
+      const names = ['North', 'East', 'South', 'West'];
+      const marks: [number, string][] = t === 'panorama'
+        ? [[0, 'South'], [0.25, 'West'], [0.5, 'North'], [0.75, 'East']]
+        : names.map((n, k): [number, string] => [(k / 4) * repeat, n]).filter(([f]) => f < 1 - 1e-9);
+      g.strokeStyle = 'rgba(255,200,60,0.9)';
+      g.setLineDash([6, 4]);
+      g.beginPath();
+      g.moveTo(ox, Math.round(oy + H * horizon) + 0.5);
+      g.lineTo(ox + W, Math.round(oy + H * horizon) + 0.5);
+      for (const [u] of marks) { g.moveTo(Math.round(ox + u * W) + 0.5, oy); g.lineTo(Math.round(ox + u * W) + 0.5, oy + H); }
+      g.stroke();
+      g.setLineDash([]);
+      if (W > 160) for (const [u, name] of marks) label(name, ox + u * W + 4, oy + 4);
+      label(t === 'strip' && repeat !== 1 ? `horizon · drawn ${repeat}× round` : 'horizon', ox + 4, oy + H * horizon + 4);
+    }
+    g.restore();
+  }
+
   private draw() {
     const { cv, g, zoom: z } = this, d = this.doc();
     const dpr = devicePixelRatio, r = cv.getBoundingClientRect();
@@ -125,13 +177,15 @@ export class View {
     g.fillStyle = getComputedStyle(cv).getPropertyValue('--stage').trim() || '#222';
     g.fillRect(0, 0, r.width, r.height);
     const W = d.w * z, H = d.h * z;
-    const tiles = d.settings.wrap && viewOpts.tiled ? [-1, 0, 1] : [0];
+    const tiles = d.settings.wrap && viewOpts.tiled && !d.settings.sky ? [-1, 0, 1] : [0];
     for (const ty of tiles)
       for (const tx of tiles) {
         const x = this.ox + tx * W, y = this.oy + ty * H;
         g.fillStyle = checker(g);
         g.save(); g.translate(x, y); g.fillRect(0, 0, W, H); g.restore();
-        g.drawImage(d.comp, x, y, W, H);
+        g.drawImage(this.image(), x, y, W, H);
+        const o = this.onion();
+        if (o) { g.globalAlpha = 0.3; g.drawImage(o, x, y, W, H); g.globalAlpha = 1; }
       }
     if (tiles.length > 1) {
       // dim the neighbour tiles so the real one stands out
@@ -156,7 +210,8 @@ export class View {
     if (viewOpts.tileGrid > 0) gridLines(viewOpts.tileGrid, 'rgba(80,160,255,0.7)');
 
     const s = d.settings;
-    if (s.sym !== 'none') {
+    if (s.sky) this.skyGuides(s.sky, W, H);
+    if (s.sym !== 'none' && s.sky !== 'cube') {
       const cx = this.ox + s.ax * z, cy = this.oy + s.ay * z;
       g.strokeStyle = 'rgba(255,80,160,0.8)';
       g.setLineDash([4, 4]);

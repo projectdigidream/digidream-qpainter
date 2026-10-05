@@ -73,6 +73,15 @@ label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap
 #p3d canvas { display: block; }
 
 #closeside { display: none; }
+#bar2 { display: none; }
+.grow { flex: 1; }
+.fnav { font-size: 18px; line-height: 1; padding-inline: 10px; }
+.playbtn { min-width: 2.6em; }
+.framelabel { min-width: 3.5em; text-align: center; font-variant-numeric: tabular-nums; color: var(--dim); }
+.frames { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; }
+.frames canvas { flex: none; width: 40px; height: 40px; object-fit: contain; image-rendering: pixelated; border: 1px solid var(--line); border-radius: 3px; cursor: pointer;
+  background: repeating-conic-gradient(#999 0 25%, #ccc 0 50%) 0 0 / 10px 10px; }
+.frames canvas.on { outline: 2px solid var(--acc); outline-offset: 1px; }
 #docname { max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-style: dashed; }
 
 #recent { width: min(520px, 94vw); max-height: 80dvh; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
@@ -91,12 +100,16 @@ body.alt { grid-template-columns: auto 1fr 0; }
 
 /* phone: tools along the bottom, panels as an overlay */
 @media (max-width: 800px) {
-  body { grid-template: "top" auto "stage" 1fr "tools" auto / 1fr; }
+  body { grid-template: "top" auto "bar2" auto "stage" 1fr "tools" auto / 1fr; }
+  #bar2 { grid-area: bar2; display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  #bar2 button { padding: 2px 10px; min-height: 30px; }
+  /* these live in the thin bar on phones */
+  #undo, #redo, #panel { display: none; }
   body.alt { grid-template-columns: 1fr; }
   #tools { flex-direction: row; overflow-x: auto; border-right: 0; border-top: 1px solid var(--line); }
   #tools button { flex: none; width: 44px; height: 44px; }
   /* horizontal swipes go to JS (swipe-to-close), vertical ones still scroll */
-  #side { display: none; position: fixed; top: calc(48px + env(safe-area-inset-top)); right: 0; bottom: calc(60px + env(safe-area-inset-bottom)); touch-action: pan-y; width: min(340px, 92vw); z-index: 2; border: 1px solid var(--line); box-shadow: 0 4px 24px #0008; }
+  #side { display: none; position: fixed; top: calc(84px + env(safe-area-inset-top)); right: 0; bottom: calc(60px + env(safe-area-inset-bottom)); touch-action: pan-y; width: min(340px, 92vw); z-index: 2; border: 1px solid var(--line); box-shadow: 0 4px 24px #0008; }
   body.alt #side { display: block; }
   #closeside { display: block; position: sticky; top: 0; z-index: 1; width: 100%; border-radius: 0; padding: 10px; background: var(--panel); }
   #p3d { height: 220px; }

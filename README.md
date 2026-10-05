@@ -2,7 +2,7 @@
 
 # qPainter
 
-qPainter is a texture editor for **pixel art and painted textures**, with a **live 3D preview**. It's built for game and texture work: seamless tiling, limited palettes, dithering, symmetry, and checking the result on a cube, sphere, or your own model while you paint.
+qPainter is a texture editor for **pixel art and painted textures**, with a **live 3D preview**. It's built for game and texture work: seamless tiling, limited palettes, dithering, symmetry, animated textures, skyboxes, and checking the result on a cube, sphere, or your own model while you paint.
 
 It runs in any modern browser, installs as an app (PWA), and ships as an **Android APK**. Everything runs locally and works offline.
 
@@ -20,13 +20,15 @@ It runs in any modern browser, installs as an app (PWA), and ships as an **Andro
 8. [Symmetry](#symmetry)
 9. [Selections](#selections)
 10. [Layers](#layers)
-11. [3D preview](#3d-preview)
-12. [Files, export and autosave](#files-export-and-autosave)
-13. [Shortcut and gesture reference](#shortcut-and-gesture-reference)
-14. [Example workflows](#example-workflows)
-15. [Troubleshooting](#troubleshooting)
-16. [Development](#development)
-17. [Limitations](#limitations)
+11. [Animation](#animation)
+12. [Skyboxes](#skyboxes)
+13. [3D preview](#3d-preview)
+14. [Files, export and autosave](#files-export-and-autosave)
+15. [Shortcut and gesture reference](#shortcut-and-gesture-reference)
+16. [Example workflows](#example-workflows)
+17. [Troubleshooting](#troubleshooting)
+18. [Development](#development)
+19. [Limitations](#limitations)
 
 ---
 
@@ -75,8 +77,8 @@ Upload the `dist/` folder (from `npm run build`) to any HTTPS static host, such 
 
 - **Top bar**: file actions, undo/redo, wrap, symmetry, palette lock, grids. On narrow screens it scrolls sideways.
 - **Tool bar**: every tool, with its shortcut in the tooltip.
-- **Side panel**: options for the current tool (only relevant controls are shown), then the palette, layers, and the 3D preview. **Tab** hides it on desktop.
-- **Phone layout**: the tool bar moves to the bottom, and ☰ opens the side panel as an overlay. Close it with the **back** button or gesture, a **swipe right**, a **tap outside**, or **✕ Close**.
+- **Side panel**: options for the current tool (only relevant controls are shown), then the palette, frames, layers, and the 3D preview. **Tab** hides it on desktop.
+- **Phone layout**: the tool bar moves to the bottom. A thin second bar under the top bar always shows **undo / redo**, the **frame** controls (‹ 2/4 › and play) and **☰**, which opens the side panel as an overlay. Close it with the **back** button or gesture, a **swipe right**, a **tap outside**, or **✕ Close**.
 
 It follows your system's light or dark theme.
 
@@ -289,6 +291,91 @@ Choose a mode in the top bar, or press **S** to cycle through them:
 
 ---
 
+## Animation
+
+Every texture can have multiple **frames**, for animated textures such as water, lava, fire, or flickering lights. A single-frame texture works exactly like before.
+
+- Frames share the layer structure: every layer has one image per frame. Layer visibility, opacity, order and merge-down apply to all frames.
+- All tools paint on the **current frame**. Undo remembers the frame an edit was made in, and jumps back to it.
+
+| Control | Action |
+|---|---|
+| Thumbnails | Click a frame to edit it. The current one is outlined. |
+| ‹ › (or **,** / **.**) | Previous / next frame (wraps around). |
+| ▶ / ❚❚ (or **F**) | Play / pause. The editor canvas and the 3D preview both animate; tapping the canvas stops playback so you don't paint on a moving target. |
+| **FPS** | Playback speed, 1–60 frames per second (saved with the texture and used for animated PNG export). |
+| **+** / **⧉** / **−** | New blank frame after this one / duplicate this frame / delete it. |
+| **← →** | Move the current frame earlier or later. |
+| **Onion skin** | Shows the previous frame faintly on top of the current one (frame 1 shows the last frame, since animations loop). |
+| **Split sheet…** | Cuts a sprite-sheet image into frames: enter the frame count; tall images are split top to bottom, wide ones left to right. |
+
+On phones, the frame controls are also in the thin bar at the top.
+
+**Tip:** for a looping animation, **duplicate** the first frame, change it slightly, duplicate again, and so on. Turn on **Onion skin** to keep the motion smooth, and set the 3D shape to **wall** with **Wrap** on to watch the animated texture tile.
+
+### Exporting animations
+
+Choose from the **Export…** menu:
+
+| Option | Result |
+|---|---|
+| **PNG 1×–16×** | The current frame only (the file name gets `-frame2`, and so on). |
+| **Sprite sheet ↓ (vertical)** | All frames stacked top to bottom: the layout Minecraft and many engines use for animated textures. |
+| **Sprite sheet → (horizontal)** | All frames side by side. |
+| **Animated PNG 1× / 4×** | A looping animated PNG at the current FPS; plays in browsers, Discord, and most image viewers. |
+
+**Save** / **Save as → PNG** on an animated texture writes the **vertical sprite sheet**. Opening a PNG that is exactly *N* times taller than it is wide asks whether to open it as an *N*-frame animation, so saving and reopening round-trips. Projects (`.texproj.json`) store all frames and the FPS.
+
+---
+
+## Skyboxes
+
+qPainter paints skies for the **DoomNet Platformer engine**, in exactly its formats and orientation (the engine's `docs/SKY.md`). What you see in qPainter's 3D preview is what the engine draws, and **Export to engine** writes the pictures and the `sky` line into a module, ready to play.
+
+| Kind | Picture | Engine settings |
+|---|---|---|
+| **Strip** (DOOM's sky) | One picture of any size (DOOM's are 256×128), wrapped round the horizon. Left edge at **north**, running clockwise; the horizon is 100/128 of the way down. | `repeat` (copies round the horizon, default 4), `height` (tangent of the top edge's elevation, default 0.625 ≈ 32°), `yaw` |
+| **Panorama** | One equirectangular 2:1 picture. Centre column **north**, east at 3/4, west at 1/4, south at both edges. | `yaw` |
+| **Cube** | Six square faces, edited as the engine's cross: **east, south, west, north** across the middle, **up** above south and **down** below it. Each side upright as seen from inside facing it. | `yaw` |
+
+`yaw` turns the sky, in turns: 0.25 is a quarter turn anticlockwise seen from above.
+
+### Starting a sky
+
+- **New… → Skybox (DoomNet engine)**: Strip (asks for the width; height is half of it), Panorama (width; 2:1), or Cube (face size; the cross is 4×3 faces).
+- **An existing picture**: open it, then choose the kind in **3D preview → Skybox**. A cube must be a 4×3 cross of square faces.
+- **An existing cube's six faces**: **Import faces…** (shown for cube skies) builds the cross from six PNGs named `…_east`, `_west`, `_north`, `_south`, `_up`, `_down`, or three.js's `px nx py ny pz nz`.
+- The kind and its settings (Repeat / Height / Yaw, shown under the Skybox menu) are saved with the texture.
+
+### Painting a sky
+
+- **Guides**: cube faces are outlined and labelled EAST … DOWN, with the unused corners of the cross darkened. A panorama shows its horizon and the South / West / North / East lines. A strip shows its horizon at row 100/128 and where north, east, south and west fall, given its Repeat.
+- **Cube edges are seamless**: a brush that crosses a face edge continues onto the face that's next to it on the cube, in the right orientation, even when that face sits elsewhere in the cross (north's right edge continues onto east's left edge, up's sides onto east and west). Flood fill spreads across face edges. Paint in the unused corners is dropped.
+- **Strips and panoramas wrap** left to right. On a panorama, painting over the top or bottom continues over the pole on the opposite side. Nothing is painted above or below a strip.
+- Symmetry works on strips and panoramas; it's off for cubes.
+
+### The 3D preview: inside the sky
+
+When the texture is a sky, the preview puts the camera at its centre and draws it with the engine's own sky shader arithmetic:
+
+- **Drag** to look around (it starts facing the middle of the picture: south for a cube, north otherwise). The **mouse wheel** zooms by changing the field of view. **Spin** turns slowly.
+- Repeat, Height and Yaw apply live.
+- Filtering is the engine's: a strip is drawn with crisp pixels; panoramas and cubes are smoothed.
+- A strip fades, above and below the picture, into the average colour of its top and bottom 8 rows, as the engine does, so keep those rows calm. Its transparent pixels show that colour too.
+- With **Paint** on, you paint straight onto the sky where you look: the most natural way to work across cube edges or near the poles.
+
+### Export to engine
+
+**Export to engine…** asks for a texture name (letters, digits, `_ - .`) and the level the sky is for (`map12`, or `default` for every level without its own), then for a folder:
+
+- **Pick the module's folder** (the one with `module.txt`): the pictures go into `assets/textures/` (a cube's as `NAME_east.png` … `NAME_down.png`), and `module.txt` gets the matching line, for example `sky map12 strip NAME repeat 2`. An existing `sky` line for that level is replaced; otherwise the new one goes after the last `sky` line. Nothing else in `module.txt` changes.
+- **Pick any other folder**: only the pictures are written, and qPainter shows the line to add yourself.
+- In browsers without a folder picker (Firefox, Safari) the pictures download, and the line is shown.
+
+The current frame is exported (the engine's skies aren't animated). Settings are written only where they differ from the engine's defaults.
+
+---
+
 ## 3D preview
 
 The preview updates live as you paint. Drag to orbit, scroll or pinch to zoom.
@@ -329,8 +416,8 @@ Tick **Paint** to draw directly on the 3D shape with the current tool:
 
 - **Save** (Ctrl+S) the first time asks where to save with the system file dialog: Android's "Save to…" picker in the app, or a normal save dialog on desktop Chrome/Edge. The texture is then **linked** to that file, and every later **Save** overwrites it directly, without asking.
 - **Save as…** always asks, and relinks the texture to the new file:
-  - **Project…** (`.texproj.json`): all layers, palette, ramps and wrap/symmetry/lock settings.
-  - **PNG (flattened)…**: the visible image. Later Saves keep writing the PNG, which is handy when a game project reads the texture directly. Layers aren't stored in a PNG, but the app keeps them in its Recent copy.
+  - **Project…** (`.texproj.json`): all layers, frames, palette, ramps and wrap/symmetry/lock settings.
+  - **PNG (flattened)…**: the visible image (for an animated texture, a vertical sprite sheet of all frames). Later Saves keep writing the PNG, which is handy when a game project reads the texture directly. Layers aren't stored in a PNG, but the app keeps them in its Recent copy.
 - **Opening** a PNG or project through **Open** links it too, so editing a PNG and pressing Save updates that PNG in place.
 - **Export…** writes a PNG at 1×–16× to a location you pick, without changing the link. Use it for one-off scaled copies.
 - Palette **.gpl / .hex** export also uses the save dialog.
@@ -374,6 +461,7 @@ In browsers without a save-file dialog (Firefox, Safari), Save and Export downlo
 | X | Swap colors | [ / ] | Brush size − / + |
 | W | Toggle wrap | S | Cycle symmetry |
 | 0 | Fit | + / − | Zoom in / out |
+| , / . | Previous / next frame | F | Play / pause animation |
 | Space+drag | Pan | Tab | Hide/show side panel |
 | Ctrl+Z | Undo | Ctrl+Shift+Z / Ctrl+Y | Redo |
 | Ctrl+C / X / V | Copy / cut / paste | Ctrl+A | Select all |
@@ -476,11 +564,13 @@ TypeScript + Vite, Canvas 2D for the editor, Three.js for the preview, Capacitor
 | File | Contents |
 |---|---|
 | `src/paint.ts` | Pure raster core with no DOM access: `plot()`, blending, palette snapping, dither patterns, shapes, flood fill, gradient, remap, palette extraction. |
-| `src/doc.ts` | Document model: layers, undo/redo (dirty-rectangle diffs for strokes, snapshots for layer operations), compositing. |
+| `src/doc.ts` | Document model: layers with one image per frame, frame operations, undo/redo (dirty-rectangle diffs for strokes, snapshots for layer and frame operations), compositing. |
 | `src/tools.ts` | Tool implementations, tool options, floating selection, selection operations. |
 | `src/view.ts` | Editor canvas: zoom/pan/pinch, pointer input, grids, tiling, symmetry and selection overlays. |
 | `src/palette.ts` | Palette panel, `.gpl`/`.hex` parsing, hue-shift and lerp ramps, color statistics. |
 | `src/preview3d.ts` | Three.js scene, shapes, texture sync, painting on the model via raycasting, model import. |
+| `src/sky.ts` | The DoomNet engine's sky formats: direction ↔ picture mapping (identical to the engine's `skyUv`, checked against it in the tests), the 2D remap across cube faces and round panoramas, and `module.txt` sky lines. |
+| `src/apng.ts` | Animated-PNG encoder: RGBA frames compressed with the platform's `CompressionStream`, no dependencies. |
 | `src/io.ts` | Save/open dialogs and linked files (File System Access API on desktop, the native plugin on Android), PNG/project encoding, the Recent library in IndexedDB. |
 | `src/main.ts` | UI wiring, keyboard shortcuts, side panel behavior, app startup. |
 | `public/` | PWA manifest, service worker, icons. |
@@ -512,5 +602,8 @@ The APK from `build-apk.sh` is debug-signed. For a store release, run `npx cap o
 - Tool options (other than brush size) are shared between tools and aren't saved between sessions.
 - Undo stores a copy of the whole layer during each stroke, so very large textures (4K) use a lot of memory.
 - Floyd–Steinberg tiles across the top/bottom edge using a warm-up heuristic, not an exact solution.
-- No animation frames, normal-map generation, or texture-atlas management.
+- Animation uses one FPS for all frames (no per-frame durations), exports no GIF, and the onion skin shows only the previous frame.
+- Frame and layer operations store a full copy of the texture for undo, so long animations at large sizes use a lot of memory.
+- Skyboxes: no conversion between kinds (for example cube ↔ panorama).
+- No normal-map generation or texture-atlas management.
 - iOS is untested (the web version will likely work in Safari; there's no iOS app build).

@@ -1,5 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Doc, type Layer } from './doc';
+import { encodeApng } from './apng';
+import { SKY_DEFAULTS, type SkyKind } from './sky';
 import type { RGBA } from './paint';
 
 // ---------- files on disk ----------
@@ -19,6 +21,9 @@ type NativeFiles = {
   create(o: { name: string; mime: string; data: string }): Promise<{ uri?: string; name?: string }>;
   write(o: { uri: string; data: string }): Promise<void>;
   open(): Promise<{ uri?: string; name?: string; data?: string }>;
+  pickFolder(o: { initial?: string }): Promise<{ uri?: string }>;
+  readText(o: { tree: string; path: string }): Promise<{ text?: string }>;
+  writePath(o: { tree: string; path: string; mime: string; data: string }): Promise<void>;
 };
 const Files = registerPlugin<NativeFiles>('Files');
 const native = Capacitor.isNativePlatform();
@@ -38,11 +43,45 @@ async function writeHandle(h: FileSystemFileHandle, b: Blob) {
 }
 
 export function pickFile(accept: string): Promise<File | null> {
+  return pickFiles(accept, false).then((f) => f[0] ?? null);
+}
+export function pickFiles(accept: string, multiple = true): Promise<File[]> {
   return new Promise((res) => {
-    const i = Object.assign(document.createElement('input'), { type: 'file', accept });
-    i.onchange = () => res(i.files?.[0] ?? null);
+    const i = Object.assign(document.createElement('input'), { type: 'file', accept, multiple });
+    i.onchange = () => res([...(i.files ?? [])]);
     i.click();
   });
+}
+
+/**
+ * Write a sky into a game module. Pick the module's folder: when it holds a module.txt, the pictures go to
+ * assets/textures/ and `editModule` updates module.txt; any other folder just gets the pictures.
+ * Without a folder picker (Firefox, Safari) the pictures download. Returns where they went, or null if cancelled.
+ */
+export async function writeToModule(files: { name: string; blob: Blob }[], editModule: (txt: string) => string): Promise<'module' | 'folder' | 'download' | null> {
+  if (native) {
+    const { uri } = await Files.pickFolder({ initial: localStorage.getItem('qpainter.moduleFolder') ?? undefined });
+    if (!uri) return null;
+    localStorage.setItem('qpainter.moduleFolder', uri);
+    const { text } = await Files.readText({ tree: uri, path: 'module.txt' });
+    const dir = text !== undefined ? 'assets/textures/' : '';
+    for (const f of files) await Files.writePath({ tree: uri, path: dir + f.name, mime: 'image/png', data: await toB64(f.blob) });
+    if (text === undefined) return 'folder';
+    await Files.writePath({ tree: uri, path: 'module.txt', mime: 'text/plain', data: await toB64(new Blob([editModule(text)])) });
+    return 'module';
+  }
+  if (w.showDirectoryPicker) {
+    let dir: FileSystemDirectoryHandle;
+    try { dir = await w.showDirectoryPicker({ id: 'qpainter-module', mode: 'readwrite' }); } catch (e) { if (aborted(e)) return null; throw e; }
+    const mod = await dir.getFileHandle('module.txt').catch(() => null);
+    const target = mod ? await (await dir.getDirectoryHandle('assets', { create: true })).getDirectoryHandle('textures', { create: true }) : dir;
+    for (const f of files) await writeHandle(await target.getFileHandle(f.name, { create: true }), f.blob);
+    if (!mod) return 'folder';
+    await writeHandle(mod, new Blob([editModule(await (await mod.getFile()).text())], { type: 'text/plain' }));
+    return 'module';
+  }
+  for (const f of files) download(f.blob, f.name);
+  return 'download';
 }
 
 function download(blob: Blob, name: string) {
@@ -141,6 +180,39 @@ export function pngBlob(doc: Doc, scale: number): Promise<Blob> {
   return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('PNG encoding failed'))), 'image/png'));
 }
 
+/** One frame, flattened and scaled, on a canvas. */
+function frameCanvas(doc: Doc, frame: number, scale: number) {
+  const src = document.createElement('canvas');
+  doc.composite(frame, src);
+  if (scale === 1) return src;
+  const c = Object.assign(document.createElement('canvas'), { width: doc.w * scale, height: doc.h * scale });
+  const g = c.getContext('2d')!;
+  g.imageSmoothingEnabled = false;
+  g.drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
+/** All frames in one image: stacked top to bottom (the Minecraft layout) or side by side. */
+export function sheetBlob(doc: Doc, scale: number, vertical: boolean): Promise<Blob> {
+  const n = doc.frames, fw = doc.w * scale, fh = doc.h * scale;
+  const c = Object.assign(document.createElement('canvas'), { width: vertical ? fw : fw * n, height: vertical ? fh * n : fh });
+  const g = c.getContext('2d')!;
+  for (let k = 0; k < n; k++) {
+    const [x, y] = vertical ? [0, k * fh] : [k * fw, 0];
+    // single layer at 1x: exact pixel values, including partial transparency
+    if (scale === 1 && doc.layers.length === 1) g.putImageData(doc.layers[0].cels[k], x, y);
+    else g.drawImage(frameCanvas(doc, k, scale), x, y);
+  }
+  return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('PNG encoding failed'))), 'image/png'));
+}
+
+/** Looping animated PNG at the doc's fps. */
+export async function apngBlob(doc: Doc, scale: number): Promise<Blob> {
+  const frames = Array.from({ length: doc.frames }, (_, k) =>
+    scale === 1 && doc.layers.length === 1 ? doc.layers[0].cels[k] : frameCanvas(doc, k, scale).getContext('2d')!.getImageData(0, 0, doc.w * scale, doc.h * scale));
+  return new Blob([(await encodeApng(frames, 1000 / doc.fps)) as BlobPart], { type: 'image/png' });
+}
+
 function thumbnail(doc: Doc) {
   const s = Math.max(1, Math.floor(64 / Math.max(doc.w, doc.h))) || 1;
   const c = Object.assign(document.createElement('canvas'), { width: Math.min(64, doc.w * s), height: Math.min(64, doc.h * s) });
@@ -154,23 +226,35 @@ function thumbnail(doc: Doc) {
 type Saved = {
   id?: string; name?: string;
   w: number; h: number; active: number; palette: RGBA[]; ramps: RGBA[][]; settings: Doc['settings'];
-  layers: (Omit<Layer, 'data'> & { data: ImageData | string })[];
+  frame?: number; fps?: number;
+  // `data` alone = saved before animation support (one frame)
+  layers: (Omit<Layer, 'data' | 'cels'> & { cels?: (ImageData | string)[]; data?: ImageData | string })[];
 };
 
 const pack = (doc: Doc, img: (d: ImageData) => ImageData | string): Saved => ({
   id: doc.id, name: doc.name,
   w: doc.w, h: doc.h, active: doc.active, palette: doc.palette, ramps: doc.ramps, settings: doc.settings,
-  layers: doc.layers.map((l) => ({ ...l, data: img(l.data) })),
+  frame: doc.frame, fps: doc.fps,
+  layers: doc.layers.map(({ name, visible, opacity, cels }) => ({ name, visible, opacity, cels: cels.map(img) })),
 });
 async function unpack(s: Saved): Promise<Doc> {
   const d = new Doc(s.w, s.h);
-  d.layers = await Promise.all(s.layers.map(async (l) => ({
-    ...l, data: typeof l.data === 'string' ? await blobToImageData(await (await fetch(l.data)).blob()) : l.data,
-  })));
-  Object.assign(d, { active: s.active, palette: s.palette, ramps: s.ramps });
+  const decode = async (v: ImageData | string) => (typeof v === 'string' ? blobToImageData(await (await fetch(v)).blob()) : v);
+  const frame = s.frame ?? 0;
+  d.layers = await Promise.all(s.layers.map(async ({ name, visible, opacity, cels, data }) => {
+    const c = await Promise.all((cels ?? [data!]).map(decode));
+    return { name, visible, opacity, cels: c, data: c[Math.min(frame, c.length - 1)] };
+  }));
+  Object.assign(d, { active: s.active, palette: s.palette, ramps: s.ramps, frame: Math.min(frame, d.frames - 1), fps: s.fps ?? 8 });
   if (s.id) d.id = s.id;
   if (s.name) d.name = s.name;
   Object.assign(d.settings, s.settings);
+  d.settings.skyParams = { ...SKY_DEFAULTS, ...s.settings.skyParams };
+  // skies saved before qPainter followed the engine's kinds (a 6:1 'strip' was a cube layout the engine doesn't read)
+  const old = { cross: 'cube', equirect: 'panorama', cylinder: 'strip', grid: null } as Record<string, SkyKind | null>;
+  const k = d.settings.sky as string | null;
+  if (k && k in old) d.settings.sky = old[k];
+  if (d.settings.sky === 'strip' && d.w === 6 * d.h) d.settings.sky = null;
   return d;
 }
 

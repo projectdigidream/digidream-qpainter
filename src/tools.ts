@@ -148,7 +148,7 @@ export function makeTools(doc: Doc, onPick: () => void) {
         doc.begin();
         const c = doc.ctx();
         const fn = opts.fillDither ? ditherFn(pattern(), opts.density, color(p), opts.ditherBg ? (p.right ? opts.primary : opts.secondary) : null) : solid(color(p), opts.opacity);
-        for (const i of floodRegion(doc.layer.data, x, y, c.wrap, opts.tol, opts.contiguous)) plot(c, i % doc.w, Math.floor(i / doc.w), 1, fn);
+        for (const i of floodRegion(doc.layer.data, x, y, c.wrap, opts.tol, opts.contiguous, c.map)) plot(c, i % doc.w, Math.floor(i / doc.w), 1, fn);
         doc.end(c.dirty);
       },
       move() {}, up() {},

@@ -15,6 +15,11 @@
       <option value="">New…</option>
       <option>16</option><option>32</option><option>64</option><option>128</option>
       <option>256</option><option>512</option><option>1024</option><option value="custom">W×H…</option>
+      <optgroup label="Skybox (DoomNet engine)">
+        <option value="sky:strip">Strip — DOOM sky…</option>
+        <option value="sky:panorama">Panorama (2:1)…</option>
+        <option value="sky:cube">Cube (six faces)…</option>
+      </optgroup>
     </select>
     <button id="open" title="Open PNG / project (Ctrl+O)">Open</button>
     <button id="recentbtn" title="Recent textures">Recent</button>
@@ -27,8 +32,14 @@
     </select>
     <select id="export" title="Export PNG">
       <option value="">Export…</option>
-      <option value="1">PNG 1×</option><option value="2">PNG 2×</option><option value="4">PNG 4×</option>
-      <option value="8">PNG 8×</option><option value="16">PNG 16×</option>
+      <option value="png:1">PNG 1×</option><option value="png:2">PNG 2×</option><option value="png:4">PNG 4×</option>
+      <option value="png:8">PNG 8×</option><option value="png:16">PNG 16×</option>
+      <optgroup label="Animation">
+        <option value="sheetv:1">Sprite sheet ↓ (vertical)</option>
+        <option value="sheeth:1">Sprite sheet → (horizontal)</option>
+        <option value="apng:1">Animated PNG 1×</option>
+        <option value="apng:4">Animated PNG 4×</option>
+      </optgroup>
     </select>
     <button id="undo" title="Undo (Ctrl+Z)">↶</button>
     <button id="redo" title="Redo (Ctrl+Shift+Z)">↷</button>
@@ -55,6 +66,18 @@
     <button id="fit" title="Fit (0)">Fit</button>
     <button id="panel" title="Toggle panels (Tab)">☰</button>
   </header>
+
+  <!-- phones: always-visible thin bar under the top bar -->
+  <nav id="bar2">
+    <button data-b2="undo" title="Undo">↶</button><button data-b2="redo" title="Redo">↷</button>
+    <span class="grow"></span>
+    <button data-b2="prev" class="fnav" title="Previous frame">‹</button>
+    <span id="b2frame" class="framelabel"></span>
+    <button data-b2="next" class="fnav" title="Next frame">›</button>
+    <button data-b2="play" class="playbtn" title="Play / pause">▶</button>
+    <span class="grow"></span>
+    <button data-b2="panel" title="Panels">☰</button>
+  </nav>
 
   <nav id="tools"></nav>
 
@@ -101,9 +124,43 @@
       </div>
     </section>
     <section><h3>Palette</h3><div id="pal"></div></section>
+    <section>
+      <h3>Frames</h3>
+      <div id="frames" class="frames"></div>
+      <div class="row wrap">
+        <button data-f="prev" class="fnav" title="Previous frame (,)">‹</button>
+        <button data-f="play" class="playbtn" title="Play / pause (F)">▶</button>
+        <button data-f="next" class="fnav" title="Next frame (.)">›</button>
+        <span class="framelabel" id="framelabel"></span>
+        <label title="Playback speed">FPS <input type="number" id="fps" min="1" max="60"></label>
+      </div>
+      <div class="row wrap">
+        <button data-f="add" title="New blank frame after this one">+</button>
+        <button data-f="dup" title="Duplicate this frame">⧉</button>
+        <button data-f="del" title="Delete this frame">−</button>
+        <button data-f="left" title="Move frame earlier">←</button>
+        <button data-f="right" title="Move frame later">→</button>
+        <label title="Show the previous frame faintly on top"><input type="checkbox" id="onion"> Onion skin</label>
+        <button data-f="split" title="Cut a sprite-sheet image into frames">Split sheet…</button>
+      </div>
+    </section>
     <section><h3>Layers</h3><div id="layers"></div></section>
     <section>
       <h3>3D preview</h3>
+      <label title="Treat this texture as a DoomNet engine sky: the preview puts you inside it, and painting follows its edges">Skybox
+        <select id="sky"><option value="">Not a skybox</option></select></label>
+      <div class="row wrap" id="skyopts">
+        <label data-sky="strip" title="How many times the picture goes round the horizon (engine default 4, DOOM's)">Repeat
+          <input type="number" id="skyrepeat" min="0.25" step="0.25"></label>
+        <label data-sky="strip" title="Tangent of the top edge's elevation (engine default 0.625, about 32°); higher stretches the picture up the sky">Height
+          <input type="number" id="skyheight" min="0.05" step="0.025"></label>
+        <label data-sky="strip panorama cube" title="Turns the sky, in turns: 0.25 is a quarter turn anticlockwise seen from above">Yaw
+          <input type="number" id="skyyaw" step="0.05"></label>
+      </div>
+      <div class="row wrap" data-sky="strip panorama cube">
+        <button id="skyexport" title="Write the picture(s) into a DoomNet module's assets/textures and its sky line into module.txt">Export to engine…</button>
+        <button id="skyfaces" data-sky="cube" title="Build the cross from six face pictures (…_east … _down, or three.js px nx py ny pz nz)">Import faces…</button>
+      </div>
       <div class="row wrap">
         <select data-p3="mesh"></select>
         <select data-p3="repeat" title="Texture repeat"><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select>

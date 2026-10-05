@@ -19,11 +19,14 @@ export interface Ctx {
   sel: Rect | null;
   mask: Uint8Array | null; // opt-in: each pixel is touched at most once per stroke
   dirty: Rect | null;
+  /** Replaces wrap/clip (skyboxes): where pixel (x,y) lands for a stamp centred at (ox,oy), or null to drop it. */
+  map: ((x: number, y: number, ox: number, oy: number) => [number, number] | null) | null;
+  origin: [number, number] | null; // centre of the current stamp, set by stamp()
 }
 
 export const makeCtx = (img: ImageData, o: Partial<Ctx> = {}): Ctx => ({
   img, wrap: false, sym: 'none', radial: 4, ax: img.width / 2, ay: img.height / 2,
-  lock: null, snap: 'nearest', sel: null, mask: null, dirty: null, ...o,
+  lock: null, snap: 'nearest', sel: null, mask: null, dirty: null, map: null, origin: null, ...o,
 });
 
 export const mod = (a: number, n: number) => ((a % n) + n) % n;
@@ -61,7 +64,11 @@ export function expand(c: Ctx, x: number, y: number): [number, number][] {
 export function plot(c: Ctx, x: number, y: number, a: number, fn: PixelFn) {
   const { width: w, height: h, data } = c.img;
   for (let [px, py] of expand(c, x, y)) {
-    if (c.wrap) { px = mod(px, w); py = mod(py, h); }
+    if (c.map) {
+      const m = c.map(px, py, ...(c.origin ?? [px, py]));
+      if (!m) continue;
+      [px, py] = m;
+    } else if (c.wrap) { px = mod(px, w); py = mod(py, h); }
     else if (px < 0 || py < 0 || px >= w || py >= h) continue;
     if (c.sel && !inRect(c.sel, px, py)) continue;
     const i = py * w + px;
@@ -195,12 +202,14 @@ export function stamp(c: Ctx, x: number, y: number, size: number, hardness: numb
   if (size <= 1) return plot(c, Math.floor(x), Math.floor(y), 1, fn);
   const r = size / 2;
   if (hardness >= 1) { x = size % 2 ? Math.floor(x) + 0.5 : Math.round(x); y = size % 2 ? Math.floor(y) + 0.5 : Math.round(y); }
+  c.origin = [Math.floor(x), Math.floor(y)];
   for (let py = Math.floor(y - r); py < y + r; py++)
     for (let px = Math.floor(x - r); px < x + r; px++) {
       const d = Math.hypot(px + 0.5 - x, py + 0.5 - y) / r;
       if (d > 1) continue;
       plot(c, px, py, hardness >= 1 || d <= hardness ? 1 : (1 - d) / (1 - hardness), fn);
     }
+  c.origin = null;
 }
 
 export function rectPts(x0: number, y0: number, x1: number, y1: number, filled: boolean): [number, number][] {
@@ -222,7 +231,7 @@ export function ellipsePts(x0: number, y0: number, x1: number, y1: number, fille
 }
 
 /** Pixel indices to fill from seed (4-connected, wrap-aware), or all matching if !contiguous. */
-export function floodRegion(img: ImageData, x: number, y: number, wrap: boolean, tol: number, contiguous: boolean): number[] {
+export function floodRegion(img: ImageData, x: number, y: number, wrap: boolean, tol: number, contiguous: boolean, map: Ctx['map'] = null): number[] {
   const { width: w, height: h } = img, target = getPx(img, x, y), out: number[] = [];
   const match = (i: number) => diff(getPx(img, i % w, Math.floor(i / w)), target) <= tol;
   if (!contiguous) { for (let i = 0; i < w * h; i++) if (match(i)) out.push(i); return out; }
@@ -234,7 +243,8 @@ export function floodRegion(img: ImageData, x: number, y: number, wrap: boolean,
     const px = i % w, py = Math.floor(i / w);
     for (const [nx, ny] of [[px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1]]) {
       let qx = nx, qy = ny;
-      if (wrap) { qx = mod(qx, w); qy = mod(qy, h); } else if (qx < 0 || qy < 0 || qx >= w || qy >= h) continue;
+      if (map) { const m = map(nx, ny, px, py); if (!m) continue; [qx, qy] = m; } // skybox: flood across face edges
+      else if (wrap) { qx = mod(qx, w); qy = mod(qy, h); } else if (qx < 0 || qy < 0 || qx >= w || qy >= h) continue;
       const j = qy * w + qx;
       if (!seen[j] && match(j)) { seen[j] = 1; stack.push(j); }
     }
