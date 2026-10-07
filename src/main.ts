@@ -8,6 +8,7 @@ import { hex, renderPalette, updateStats } from './palette';
 import { MESHES, createPreview, previewOpts, type PaintEvent } from './preview3d';
 import { cancelFloat, clearSel, commitFloat, copySel, makeTools, opts, pasteClip, pattern, setClipboard, transformSel, type P, type Tool } from './tools';
 import { View, viewOpts } from './view';
+import { startEmbed, type Embed } from './host';
 import { FACES, SKY_DEFAULTS, SKY_KINDS, THREE_FACE_NAMES, engineName, faceRects, fitsSky, setSkyLine, skyLine, skyPictures, skySize, type SkyKind } from './sky';
 
 const $ = <T extends HTMLElement = HTMLInputElement>(s: string) => document.querySelector(s) as T;
@@ -52,7 +53,8 @@ function paint3d(kind: PaintEvent, uv: { x: number; y: number } | null, e: Point
 // ---------- change propagation ----------
 // Every change is autosaved into the library (IndexedDB); Save writes to a real file.
 let saveTimer = 0, booted = false; // no autosave until the last texture is restored, or a blank one would be stored
-const save = () => { if (!booted) return; doc.unsaved = true; showName(); clearTimeout(saveTimer); saveTimer = window.setTimeout(() => libPut(doc), 800); };
+let embed: Embed | null = null; // inside another app (host.ts): the host keeps the texture, not the library
+const save = () => { if (embed) { doc.unsaved = true; return embed.changed(); } if (!booted) return; doc.unsaved = true; showName(); clearTimeout(saveTimer); saveTimer = window.setTimeout(() => libPut(doc), 800); };
 function hook(d: Doc) {
   d.onChange = (final) => {
     if (!playTimer) showFrame(d.frame);
@@ -629,7 +631,9 @@ refreshPalette();
 doc.changed(true);
 preview.set();
 requestAnimationFrame(() => view.fit());
-restore().then((d) => { booted = true; if (d) setDoc(d); else save(); showName(); });
-
-if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js');
+embed = startEmbed({ current: () => doc, setDoc });
+if (!embed) {
+  restore().then((d) => { booted = true; if (d) setDoc(d); else save(); showName(); });
+  if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js');
+}
 if (import.meta.env.DEV) (window as any).app = { get doc() { return doc; }, opts, setTool };
