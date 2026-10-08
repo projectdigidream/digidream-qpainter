@@ -110,9 +110,10 @@ function chooseNew(cur: Doc): Promise<Doc> {
   const el = <T extends HTMLElement>(q: string) => dlg.querySelector(q) as T;
   const sync = () => {
     const kind = (f.kind as HTMLSelectElement).value;
-    el<HTMLElement>('[data-for=tex]').hidden = kind !== 'tex';
+    // style.display, not hidden: qPainter's own CSS lays labels out and wins over [hidden].
+    el<HTMLElement>('[data-for=tex]').style.display = kind === 'tex' ? '' : 'none';
     el<HTMLElement>('[data-for=custom]').style.display = kind === 'tex' && (f.size as HTMLSelectElement).value === 'custom' ? 'flex' : 'none';
-    el<HTMLElement>('[data-for=sky]').hidden = kind === 'tex';
+    el<HTMLElement>('[data-for=sky]').style.display = kind === 'tex' ? 'none' : '';
     if (kind !== 'tex') {
       const [label, n] = SKY[kind as SkyKind];
       el<HTMLElement>('[data-sky-label]').textContent = label;
