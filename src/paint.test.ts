@@ -191,8 +191,8 @@ test("sky: matches the DoomNet engine's own mapping and its docs/SKY.md", async 
     .toBe('name x\nsky default strip SKY1\nsky map12 panorama p\n');
   expect(setSkyLine('name x\nsky default strip SKY1\n', 'sky arena panorama p')).toBe('name x\nsky default strip SKY1\nsky arena panorama p\n');
 
-  // the engine's own skyUv, where its source is on this machine
-  const engine = '~/DoomNetPlatformer/engine/client/src/render/sky.js';
+  // the engine's own skyUv, where its source is beside qPainter (the workspace)
+  const engine = new URL('../../engine/client/src/render/sky.js', import.meta.url).href;
   const mod = await import(/* @vite-ignore */ engine).catch(() => null);
   if (!mod) return;
   const { skyUv, SKY_KIND } = mod;
@@ -292,8 +292,10 @@ test('Aseprite: indexed colour uses the palette and its transparent index', asyn
 
 test('Aseprite: a real file from disk parses', async () => {
   const fs = await import(/* @vite-ignore */ 'node:fs' as string).catch(() => null);
-  const file = '~/Downloads/craftpix-net-789196-free-top-down-hunt-animals-pixel-sprite-pack/ASEPRITE/Deer/Run/Deer_Run_right.aseprite';
-  if (!fs?.existsSync(file)) return;
+  // $QPAINTER_ASEPRITE_SAMPLE: Deer/Run/Deer_Run_right.aseprite from craftpix's free
+  // top-down hunt animals pack (32x32, 6 frames). Skipped without it.
+  const file = (globalThis as any).process?.env?.QPAINTER_ASEPRITE_SAMPLE as string | undefined;
+  if (!file || !fs?.existsSync(file)) return;
   const { readAseprite } = await import('./aseprite');
   const a = await readAseprite(fs.readFileSync(file).buffer);
   expect([a.w, a.h, a.layers[0].cels.length]).toEqual([32, 32, 6]);

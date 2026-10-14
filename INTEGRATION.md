@@ -31,9 +31,9 @@ with the other two tools. The sections after it are qPainter's part.
 
 | Tool | Where | Makes | Pixels are |
 |---|---|---|---|
-| **ThreeSprite** (PrSpr editor) | `~/ThreeSprite` | animated billboard sprites → `threesprite-atlas` v1 (`NAME.json` + `NAME.png`) | RGBA8, palettes are a drawing aid |
-| **qPainter** | `~/textureeditor` | wall and floor textures → PNG | RGBA8, palette + optional lock |
-| **Studio** | `~/DoomNetPlatformer/studio` | levels; owns the **module** the other two deliver into | — |
+| **ThreeSprite** (PrSpr editor) | `threesprite/` (in the workspace) | animated billboard sprites → `threesprite-atlas` v1 (`NAME.json` + `NAME.png`) | RGBA8, palettes are a drawing aid |
+| **qPainter** | `qpainter/` (in the workspace) | wall and floor textures → PNG | RGBA8, palette + optional lock |
+| **Studio** | `studio/` (in the workspace) | levels; owns the **module** the other two deliver into | — |
 
 A **module** is a folder with a `module.txt` at its root (for example
 `DoomNetPlatformer/modules/starter/`). The engine reads art from:
