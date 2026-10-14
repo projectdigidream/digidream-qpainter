@@ -89,7 +89,7 @@ It follows your system's light or dark theme.
 ### Documents
 
 - **New…**: square sizes from 16 to 1024 px, or **W×H…** for any size up to 4096. The new texture keeps your current palette, ramps and settings. The texture you were working on is saved first (see [Files](#files-export-and-autosave)).
-- **Open**: pick a PNG/JPG/WebP or a `.texproj.json` project in the system file dialog.
+- **Open**: pick a PNG/JPG/WebP, an Aseprite file (`.aseprite` / `.ase`, see [below](#aseprite-files)), or a `.texproj.json` project in the system file dialog.
 - **Recent**: every texture you've worked on, with thumbnails; click one to switch to it.
 - **Save / Save as…**: write to a file you choose (details [below](#files-export-and-autosave)).
 - **Export…**: a flattened PNG at 1×, 2×, 4×, 8× or 16×, scaled with hard pixel edges.
@@ -231,6 +231,7 @@ The default palette is **Sweetie 16**.
 | `.pal` | ✓ | ✓ | JASC-PAL: Aseprite, Paint Shop Pro, many pixel-art tools. |
 | `.png` | ✓ | ✓ | A swatch strip, one pixel per colour (Lospec's PNG). On import, any image works: its colours in the order they appear, exact up to 256 (more are reduced with median cut). |
 | `.texproj.json` | — | ✓ | Takes the palette of another qPainter project. |
+| `.aseprite` / `.ase` | — | ✓ | Takes the Aseprite file's palette. |
 
 Palettes always hold opaque colours; the alpha channel isn't stored.
 
@@ -455,6 +456,23 @@ In browsers without a save-file dialog (Firefox, Safari), Save and Export downlo
 - On launch, the texture you had open last is restored.
 - Tool options and the current colors aren't saved.
 
+### Aseprite files
+
+**Open** reads Aseprite's own files (`.aseprite` / `.ase`) directly:
+
+| Aseprite | In qPainter |
+|---|---|
+| Layers | Layers, with their names, visibility and opacity. |
+| Groups | Flattened: each layer inside a group keeps the group's visibility and opacity, and is named `Group/Layer`. |
+| Frames and cels | Frames. Cels are placed at their position, with their opacity applied; linked cels are copied. |
+| RGBA, grayscale and indexed colour | All three. Indexed sprites use the file's palette and its transparent colour. |
+| Palette | Becomes the palette. |
+| Frame durations | The animation's FPS. qPainter uses one speed for every frame, so mixed durations take the most common one. |
+| Blend modes other than Normal | Drawn as Normal. |
+| Tilemap layers, reference layers, tags, slices, user data | Left out. |
+
+Anything that couldn't be carried over exactly is listed in a note when the file opens. An Aseprite file isn't linked for saving (qPainter doesn't write `.aseprite`): **Save** asks where to put a qPainter project or a PNG. To take just the colours, use the palette's **Import…** on the `.aseprite` file.
+
 ### Other files
 
 | What | Where |
@@ -599,6 +617,7 @@ TypeScript + Vite, Canvas 2D for the editor, Three.js for the preview, Capacitor
 | `src/palette.ts` | Palette panel, `.gpl`/`.hex` parsing, hue-shift and lerp ramps, color statistics. |
 | `src/preview3d.ts` | Three.js scene, shapes, texture sync, painting on the model via raycasting, model import. |
 | `src/sky.ts` | The DoomNet engine's sky formats: direction ↔ picture mapping (identical to the engine's `skyUv`, checked against it in the tests), the 2D remap across cube faces and round panoramas, and `module.txt` sky lines. |
+| `src/aseprite.ts` | Aseprite file reader: layers (groups flattened), frames, cels (raw, compressed, linked), RGBA/grayscale/indexed colour, palettes. |
 | `src/apng.ts` | Animated-PNG encoder: RGBA frames compressed with the platform's `CompressionStream`, no dependencies. |
 | `src/io.ts` | Save/open dialogs and linked files (File System Access API on desktop, the native plugin on Android), PNG/project encoding, the Recent library in IndexedDB. |
 | `src/main.ts` | UI wiring, keyboard shortcuts, side panel behavior, app startup. |

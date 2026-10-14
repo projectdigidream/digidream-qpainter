@@ -1,6 +1,7 @@
 import type { Doc } from './doc';
 import { saveAs, pickFile, blobToImageData } from './io';
 import { eq, extractPalette, remap, type RGBA } from './paint';
+import { readAseprite } from './aseprite';
 import { opts } from './tools';
 
 export const hex = (c: RGBA) => '#' + c.slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('');
@@ -165,11 +166,12 @@ export function renderPalette(el: HTMLElement, doc: Doc, refresh: () => void) {
     const mode = $('pimp').value;
     $('pimp').value = '';
     if (!mode) return;
-    const f = await pickFile('.gpl,.hex,.pal,.txt,.json,image/*');
+    const f = await pickFile('.gpl,.hex,.pal,.txt,.json,.aseprite,.ase,image/*');
     if (!f) return;
     try {
       // an image's colours in the order they appear (exact up to 256, median cut beyond)
-      const p = f.type.startsWith('image/') ? extractPalette(await blobToImageData(f), 256) : parsePalette(await f.text());
+      const p = /\.(aseprite|ase)$/i.test(f.name) ? (await readAseprite(await f.arrayBuffer())).palette
+        : f.type.startsWith('image/') ? extractPalette(await blobToImageData(f), 256) : parsePalette(await f.text());
       if (!p.length) return alert(`No colours found in ${f.name}.`);
       if (mode === 'replace') doc.palette = p; else addColors(p);
       refresh();

@@ -225,3 +225,77 @@ test('palette files round-trip, and "used colours" lists palette colours first, 
   const f2 = new Uint8ClampedArray([255, 0, 0, 255]);
   expect(usedColors(pal, [f1, f2])).toEqual([[255, 0, 0, 255], [0, 128, 255, 255], [9, 200, 9, 255]]);
 });
+
+// ---- Aseprite files, written byte by byte from the published format ----
+async function aseFile(o: { w: number; h: number; depth: number; flags: number; transparent?: number; frames: { ms: number; chunks: [number, number[]][] }[] }) {
+  const le = (n: number, b: number) => Array.from({ length: b }, (_, i) => (n >>> (8 * i)) & 255);
+  const frames = o.frames.map((f) => {
+    const chunks = f.chunks.flatMap(([type, data]) => [...le(6 + data.length, 4), ...le(type, 2), ...data]);
+    return [...le(16 + chunks.length, 4), ...le(0xf1fa, 2), ...le(f.chunks.length, 2), ...le(f.ms, 2), 0, 0, ...le(f.chunks.length, 4), ...chunks];
+  }).flat();
+  const head = [...le(128 + frames.length, 4), ...le(0xa5e0, 2), ...le(o.frames.length, 2), ...le(o.w, 2), ...le(o.h, 2), ...le(o.depth, 2), ...le(o.flags, 4), ...le(100, 2), ...le(0, 8), o.transparent ?? 0];
+  return new Uint8Array([...head, ...new Array(128 - head.length).fill(0), ...frames]).buffer;
+}
+const aseStr = (s: string) => [s.length, 0, ...[...s].map((c) => c.charCodeAt(0))];
+const layerChunk = (name: string, flags: number, type = 0, level = 0, opacity = 255): [number, number[]] => [0x2004, [flags, 0, type, 0, level, 0, 0, 0, 0, 0, 0, 0, opacity, 0, 0, 0, ...aseStr(name)]];
+const celHead = (layer: number, x: number, y: number, opacity: number, kind: number) => [layer, 0, x & 255, (x >> 8) & 255, y & 255, (y >> 8) & 255, opacity, kind, 0, 0, 0, 0, 0, 0, 0, 0];
+const zlib = async (b: number[]) => [...new Uint8Array(await new Response(new Blob([new Uint8Array(b)]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer())];
+
+test('Aseprite: RGBA layers, groups, compressed/raw/linked cels, opacity, durations', async () => {
+  const { readAseprite, aseFps } = await import('./aseprite');
+  const red = [255, 0, 0, 255], blue = [0, 0, 255, 255];
+  const buf = await aseFile({
+    w: 4, h: 2, depth: 32, flags: 1,
+    frames: [
+      { ms: 100, chunks: [
+        layerChunk('bg', 1 | 8),
+        layerChunk('fx', 1, 1),                 // a group...
+        layerChunk('glow', 1, 0, 1, 128),       // ...holding a half-opaque layer
+        layerChunk('hidden group', 0, 1),
+        layerChunk('ghost', 1, 0, 1),           // visible itself, but its group is hidden
+        layerChunk('trace', 1 | 64),            // a reference layer: not art
+        [0x2005, [...celHead(0, 1, 0, 255, 2), 2, 0, 1, 0, ...(await zlib([...red, ...red]))]],   // compressed 2×1 at (1,0)
+        [0x2005, [...celHead(2, 0, 1, 255, 0), 1, 0, 1, 0, ...blue]],                            // raw 1×1 at (0,1)
+        [0x2019, [2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 255, 0, 0, 4, 5, 6, 255]],
+      ] },
+      { ms: 100, chunks: [[0x2005, [...celHead(0, 0, 0, 255, 1), 0, 0]], [0x2005, [...celHead(2, 3, 1, 128, 0), 1, 0, 1, 0, ...blue]]] }, // linked to frame 1; cel at half opacity
+      { ms: 200, chunks: [] },
+    ],
+  });
+  const a = await readAseprite(buf);
+  expect([a.w, a.h, a.durations]).toEqual([4, 2, [100, 100, 200]]);
+  expect(a.layers.map((l) => [l.name, l.visible, +l.opacity.toFixed(2)])).toEqual([['bg', true, 1], ['fx/glow', true, 0.5], ['hidden group/ghost', false, 1]]);
+  const px = (l: number, f: number, x: number, y: number) => [...a.layers[l].cels[f].slice((y * 4 + x) * 4, (y * 4 + x) * 4 + 4)];
+  expect([px(0, 0, 0, 0), px(0, 0, 1, 0), px(0, 0, 2, 0)]).toEqual([[0, 0, 0, 0], red, red]);
+  expect(px(0, 1, 2, 0)).toEqual(red);                  // the linked cel
+  expect(px(1, 0, 0, 1)).toEqual(blue);
+  expect(px(1, 1, 3, 1)).toEqual([0, 0, 255, 128]);     // cel opacity baked into alpha
+  expect(px(0, 2, 1, 0)).toEqual([0, 0, 0, 0]);         // a frame with no cels is empty
+  expect(a.palette).toEqual([[1, 2, 3, 255], [4, 5, 6, 255]]);
+  expect(a.warnings.join()).toMatch(/different durations/);
+  expect(aseFps(a.durations)).toBe(10);
+});
+
+test('Aseprite: indexed colour uses the palette and its transparent index', async () => {
+  const { readAseprite } = await import('./aseprite');
+  const buf = await aseFile({
+    w: 3, h: 1, depth: 8, flags: 1, transparent: 0,
+    frames: [{ ms: 50, chunks: [
+      [0x0004, [1, 0, 0, 3, 0, 0, 0, 255, 255, 255, 10, 20, 30]], // old-style palette: 3 colours
+      layerChunk('ink', 1),
+      [0x2005, [...celHead(0, 0, 0, 255, 0), 3, 0, 1, 0, 0, 1, 2]],
+    ] }],
+  });
+  const a = await readAseprite(buf);
+  expect([...a.layers[0].cels[0]]).toEqual([0, 0, 0, 0, 255, 255, 255, 255, 10, 20, 30, 255]);
+});
+
+test('Aseprite: a real file from disk parses', async () => {
+  const fs = await import(/* @vite-ignore */ 'node:fs' as string).catch(() => null);
+  const file = '~/Downloads/craftpix-net-789196-free-top-down-hunt-animals-pixel-sprite-pack/ASEPRITE/Deer/Run/Deer_Run_right.aseprite';
+  if (!fs?.existsSync(file)) return;
+  const { readAseprite } = await import('./aseprite');
+  const a = await readAseprite(fs.readFileSync(file).buffer);
+  expect([a.w, a.h, a.layers[0].cels.length]).toEqual([32, 32, 6]);
+  expect(a.layers.some((l) => l.cels.some((c) => c.some((v) => v)))).toBe(true);
+});

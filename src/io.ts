@@ -134,7 +134,7 @@ export async function openAny(): Promise<{ blob: Blob; name: string; ref: FileRe
   if (w.showOpenFilePicker) {
     try {
       const [h]: FileSystemFileHandle[] = await w.showOpenFilePicker({
-        types: [{ description: 'Images and texture projects', accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif'], 'application/json': ['.json'] } }],
+        types: [{ description: 'Images, Aseprite files and texture projects', accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif'], 'application/json': ['.json'], 'application/octet-stream': ['.aseprite', '.ase'] } }],
       });
       return { blob: await h.getFile(), name: h.name, ref: h };
     } catch (e) {
@@ -142,7 +142,7 @@ export async function openAny(): Promise<{ blob: Blob; name: string; ref: FileRe
       throw e;
     }
   }
-  const f = await pickFile('image/*,.json');
+  const f = await pickFile('image/*,.json,.aseprite,.ase');
   return f && { blob: f, name: f.name, ref: null };
 }
 

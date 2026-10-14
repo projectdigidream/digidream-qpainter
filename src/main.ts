@@ -9,6 +9,7 @@ import { MESHES, createPreview, previewOpts, type PaintEvent } from './preview3d
 import { cancelFloat, clearSel, commitFloat, copySel, makeTools, opts, pasteClip, pattern, setClipboard, transformSel, type P, type Tool } from './tools';
 import { View, viewOpts } from './view';
 import { startEmbed, type Embed } from './host';
+import { aseFps, readAseprite } from './aseprite';
 import { FACES, SKY_DEFAULTS, SKY_KINDS, THREE_FACE_NAMES, engineName, faceRects, fitsSky, setSkyLine, skyLine, skyPictures, skySize, type SkyKind } from './sky';
 
 const $ = <T extends HTMLElement = HTMLInputElement>(s: string) => document.querySelector(s) as T;
@@ -447,12 +448,30 @@ $<HTMLSelectElement>('#new').onchange = () => {
   switchTo(d);
 };
 $('#open').onclick = openFile;
+/** An Aseprite file as a qPainter texture: layers, frames, palette and speed. */
+async function asepriteDoc(buf: ArrayBuffer): Promise<Doc> {
+  const a = await readAseprite(buf);
+  if (!a.layers.length) throw new Error('the file has no layers qPainter can show');
+  const d = new Doc(a.w, a.h);
+  d.layers = a.layers.map((l) => {
+    const cels = l.cels.map((c) => new ImageData(c, a.w, a.h));
+    return { name: l.name, visible: l.visible, opacity: l.opacity, cels, data: cels[0] };
+  });
+  d.active = d.layers.length - 1;
+  Object.assign(d, { palette: a.palette.length ? a.palette : doc.palette, ramps: doc.ramps, fps: aseFps(a.durations) });
+  Object.assign(d.settings, { ...doc.settings, ax: a.w / 2, ay: a.h / 2, sky: null, skyParams: { ...SKY_DEFAULTS } });
+  if (a.warnings.length) setTimeout(() => alert(`Opened from Aseprite, with some differences:\n\n• ${a.warnings.join('\n• ')}`), 300);
+  return d;
+}
+
 async function openFile() {
   try {
     const f = await openAny();
     if (!f) return;
     let d: Doc;
+    const ase = /\.(aseprite|ase)$/i.test(f.name);
     if (/\.json$/i.test(f.name)) d = await loadProject(f.blob);
+    else if (ase) d = await asepriteDoc(await f.blob.arrayBuffer());
     else {
       const img = await blobToImageData(f.blob);
       d = new Doc(img.width, img.height);
@@ -463,7 +482,8 @@ async function openFile() {
       if (Number.isInteger(n) && n > 1 && confirm(`This looks like a vertical sprite sheet of ${n} frames. Open it as an animation?`)) d.splitFrames(n, true);
     }
     d.name = baseName(f.name);
-    d.file = f.ref && { ref: f.ref, kind: /\.json$/i.test(f.name) ? 'project' : 'png' };
+    // qPainter doesn't write .aseprite, so an Aseprite file isn't linked: Save asks where to put a project or PNG
+    d.file = f.ref && !ase ? { ref: f.ref, kind: /\.json$/i.test(f.name) ? 'project' : 'png' } : null;
     // reopening a file that's already in Recent replaces that entry instead of adding a duplicate
     for (const e of await libList()) if (await sameFile(e.file?.ref ?? null, f.ref)) { d.id = e.id; break; }
     await switchTo(d);
