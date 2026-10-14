@@ -3,7 +3,10 @@
   "productName": "qPainter",
   "version": "0.1.0",
   "description": "A pixel texture painter with palettes, layers and frames",
-  "author": "Project Digidream",
+  "author": {
+    "name": "Project Digidream",
+    "email": "342386719+projectdigidream@users.noreply.github.com"
+  },
   "license": "MIT",
   "main": "main.js",
   "private": true,
@@ -85,5 +88,6 @@
       }
     ],
     "afterPack": "./adhoc-sign.js"
-  }
+  },
+  "homepage": "https://github.com/projectdigidream/digidream-qpainter"
 }
