@@ -1,0 +1,89 @@
+{
+  "name": "qpainter",
+  "productName": "qPainter",
+  "version": "0.1.0",
+  "description": "A pixel texture painter with palettes, layers and frames",
+  "author": "Project Digidream",
+  "license": "MIT",
+  "main": "main.js",
+  "private": true,
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.digidream.qpainter",
+    "productName": "qPainter",
+    "icon": "icon.png",
+    "files": [
+      "main.js",
+      "icon.png",
+      "payload/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Graphics"
+    },
+    "fileAssociations": [
+      {
+        "ext": "texproj",
+        "name": "qPainter project",
+        "role": "Editor"
+      }
+    ],
+    "afterPack": "./adhoc-sign.js"
+  }
+}
