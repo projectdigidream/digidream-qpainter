@@ -5,6 +5,8 @@ anything not released yet is under **Unreleased**.
 
 ## Unreleased
 
+## 0.2.0 -- 2026-10-17
+
 ### Fixed
 
 - **The palette jumped up and down when you changed tools.** The tool's
