@@ -68,16 +68,16 @@ Upload the `dist/` folder (from `npm run build`) to any HTTPS static host, such 
 ┌──────────────────────────── top bar ─────────────────────────────┐
 │ New Open Recent name Save Save-as Export ↶ ↷ │ Wrap Tiles Offset½ Symmetry │ Lock │ … ☰ │
 ├──────┬─────────────────────────────────────────┬─────────────────┤
-│ tool │                                         │ Tool options    │
-│ bar  │              canvas                     │ Palette         │
-│      │                                         │ Layers          │
+│ tool │                                         │ Palette         │
+│ bar  │              canvas                     │ Tool options    │
+│      │                                         │ Frames, Layers  │
 │      │                                         │ 3D preview      │
 └──────┴─────────────────────────────────────────┴─────────────────┘
 ```
 
-- **Top bar**: file actions, undo/redo, wrap, symmetry, palette lock, grids. On narrow screens it scrolls sideways.
-- **Tool bar**: every tool, with its shortcut in the tooltip.
-- **Side panel**: options for the current tool (only relevant controls are shown), then the palette, frames, layers, and the 3D preview. **Tab** hides it on desktop.
+- **Top bar**: file actions, undo/redo, wrap, symmetry, palette lock, grids. A control that only matters while another is on appears next to it when it's needed: **Tiles** with Wrap, **⊕** with a symmetry, **snap nearest / dither** with Lock. On narrow screens the bar scrolls sideways.
+- **Tool bar**: every tool, with its name and shortcut in the tooltip.
+- **Side panel**: the palette first, so it stays in the same place whichever tool you pick; then the current tool's name and options (only the relevant controls are shown), frames, layers, and the 3D preview. **Tab** hides it on desktop.
 - **Phone layout**: the tool bar moves to the bottom. A thin second bar under the top bar always shows **undo / redo**, the **frame** controls (‹ 2/4 › and play) and **☰**, which opens the side panel as an overlay. Close it with the **back** button or gesture, a **swipe right**, a **tap outside**, or **✕ Close**.
 
 It follows your system's light or dark theme.
@@ -124,22 +124,22 @@ Pixel grid lines appear automatically once you zoom in to 8× or more (**Grid** 
 
 | Tool | Key | What it does | Options |
 |---|---|---|---|
-| ✏️ Pencil | P | Hard-edged pixels | Size, opacity, pressure → size / opacity, **pixel-perfect** |
-| 🖌️ Brush | B | Soft round brush | Size, **hardness**, opacity, pressure |
-| 🧽 Eraser | E | Erases to transparent (soft or hard) | Size, hardness, opacity, pressure |
-| ▦ Dither | D | Paints a pattern of primary/secondary | Size, pattern, offset, density, pressure → size / density, 2nd color |
-| ◐ Shade | H | Steps colors along a ramp | Size |
-| ⁘ Noise | N | Random scatter of colors | Size, density, use ramp |
-| ⇄ Replace | R | Recolors only one existing color | Size, tolerance |
-| ≈ Smooth | A | Hand anti-aliasing helper | Size |
-| ╱ Line | L | Straight line (**Shift** = snap to 0°/45°/90°) | Size, opacity |
-| ▭ Rectangle | U | Outline or filled (**Shift** = square) | Size, opacity, filled |
-| ◯ Ellipse | C | Outline or filled (**Shift** = circle) | Size, opacity, filled |
-| 🪣 Fill | G | Flood fill | Opacity, tolerance, contiguous, fill with pattern |
-| ▤ Gradient | J | Dithered gradient | Pattern, offset, radial, use ramp |
-| 💧 Eyedropper | I / Alt | Pick a color | — |
-| ⬚ Select | M | Rectangular selection | Selection actions |
-| ✥ Move | V / O | Move a selection, or offset the layer | Selection actions |
+| Pencil | P | Hard-edged pixels | Size, opacity, pressure → size / opacity, **pixel-perfect** |
+| Brush | B | Soft round brush | Size, **hardness**, opacity, pressure |
+| Eraser | E | Erases to transparent (soft or hard) | Size, hardness, opacity, pressure |
+| Dither | D | Paints a pattern of primary/secondary | Size, pattern, offset, density, pressure → size / density, 2nd color |
+| Shade | H | Steps colors along a ramp | Size |
+| Noise | N | Random scatter of colors | Size, density, use ramp |
+| Replace | R | Recolors only one existing color | Size, tolerance |
+| Smooth | A | Hand anti-aliasing helper | Size |
+| Line | L | Straight line (**Shift** = snap to 0°/45°/90°) | Size, opacity |
+| Rectangle | U | Outline or filled (**Shift** = square) | Size, opacity, filled |
+| Ellipse | C | Outline or filled (**Shift** = circle) | Size, opacity, filled |
+| Fill | G | Flood fill | Opacity, tolerance, contiguous, fill with pattern |
+| Gradient | J | Dithered gradient | Pattern, offset, radial, use ramp |
+| Eyedropper | I / Alt | Pick a color | — |
+| Select | M | Rectangular selection | Selection actions |
+| Move | V / O | Move a selection, or offset the layer | Selection actions |
 
 Details:
 
@@ -188,7 +188,7 @@ Replaces each pixel with the palette color closest to the average of itself and 
 
 ### Soft brushes with a locked palette
 
-With the palette [locked](#palette-lock), soft-brush blends are snapped back to palette colors, in one of two ways (set in the top bar):
+With the palette [locked](#palette-lock), soft-brush blends are snapped back to palette colors, in one of two ways (set in the top bar, next to **Lock** once it's on):
 
 - **snap nearest**: each blended pixel becomes the closest palette color. You get hard bands.
 - **snap dither**: each blended pixel alternates between its two closest palette colors in a Bayer pattern. You get dithered gradients, as if you had dithered by hand.
@@ -257,7 +257,7 @@ Ramps drive the **Shade** brush, **Noise** with *Use active ramp*, and **Gradien
 Turn on **Wrap** (or press **W**) to paint tiling textures:
 
 - Every tool wraps around the edges: brushes, lines, shapes, fills, dither patterns, moved selections, symmetry copies.
-- **Tiles** shows the texture repeated 3×3 around the real one (the copies are dimmed), so you see seams while you paint.
+- **Tiles** (next to Wrap while it's on) shows the texture repeated 3×3 around the real one (the copies are dimmed), so you see seams while you paint.
 - **Offset ½** shifts the current layer by half its width and height, bringing the edges into the middle so you can paint over the seam. Press it again to shift back. It's undoable.
 - The **Move** tool with no selection drags the whole layer around freely, wrapping at the edges.
 - **Remap → Floyd–Steinberg** in wrap mode carries the dithering error across the edges, so dithered results tile too.
@@ -278,7 +278,7 @@ Choose a mode in the top bar, or press **S** to cycle through them:
 | Radial | 2–12 rotated copies (set the count in the number box) |
 
 - The axes are drawn as dashed pink lines.
-- **Ctrl/⌘+click** the canvas to move the symmetry center; it snaps to pixel edges and pixel centers. **⊕** resets it to the middle.
+- **Ctrl/⌘+click** the canvas to move the symmetry center; it snaps to pixel edges and pixel centers. **⊕** (shown while a symmetry is on) resets it to the middle.
 - Symmetry works with every painting tool, including fills and shapes, and combines with wrap mode. The Gradient tool ignores it.
 
 ---

@@ -45,7 +45,7 @@
     <button id="redo" title="Redo (Ctrl+Shift+Z)">↷</button>
     <span class="sep"></span>
     <label title="Wrap-around painting (W)"><input type="checkbox" id="wrap"> Wrap</label>
-    <label title="Show 3×3 tiles in wrap mode"><input type="checkbox" data-view="tiled" checked> Tiles</label>
+    <label id="tiles" title="Show 3×3 tiles in wrap mode"><input type="checkbox" data-view="tiled" checked> Tiles</label>
     <button id="offhalf" title="Offset layer by half (seam check)">Offset ½</button>
     <select id="sym" title="Symmetry (S). Ctrl/⌘+click sets center">
       <option value="none">No sym</option><option value="x">Mirror X</option><option value="y">Mirror Y</option>
@@ -74,7 +74,7 @@
     <button data-b2="prev" class="fnav" title="Previous frame">‹</button>
     <span id="b2frame" class="framelabel"></span>
     <button data-b2="next" class="fnav" title="Next frame">›</button>
-    <button data-b2="play" class="playbtn" title="Play / pause">▶</button>
+    <button data-b2="play" class="playbtn" title="Play / pause">▶︎</button>
     <span class="grow"></span>
     <button data-b2="panel" title="Panels">☰</button>
   </nav>
@@ -85,7 +85,9 @@
 
   <aside id="side">
     <button id="closeside" title="Close (or swipe right / press back)">✕ Close</button>
+    <section><h3>Palette</h3><div id="pal"></div></section>
     <section id="opts">
+      <h3 id="optshead"></h3>
       <label data-for="pencil brush eraser dither shade noise replace smooth line rect ellipse">Size
         <input type="range" data-opt="size" min="1" max="64"><output data-out="size"></output></label>
       <label data-for="brush eraser">Hardness <input type="range" data-opt="hardness" min="0" max="1" step="0.05"></label>
@@ -116,6 +118,7 @@
       <label data-for="noise">Density <input type="range" data-opt="noise" min="0.02" max="1" step="0.02"></label>
       <p data-for="shade" class="hint">Needs a ramp (Palette ▸ Ramp). Left = lighter, right/Shift = darker. One step per stroke.</p>
       <p data-for="smooth" class="hint">Averages neighbours and snaps to the palette: hand anti-aliasing.</p>
+      <p data-for="picker" class="hint">Click picks the primary color, right-click the secondary. Hold Alt to pick with any other tool.</p>
       <p data-for="move" class="hint">Drag selection (Alt = copy). No selection = offset whole layer with wrap.</p>
       <div data-for="select move" class="row wrap">
         <button data-act="copy">Copy</button><button data-act="cut">Cut</button><button data-act="paste">Paste</button>
@@ -123,13 +126,12 @@
         <button data-act="rot">Rotate ⟳</button><button data-act="all">All</button><button data-act="none">None</button>
       </div>
     </section>
-    <section><h3>Palette</h3><div id="pal"></div></section>
     <section>
       <h3>Frames</h3>
       <div id="frames" class="frames"></div>
       <div class="row wrap">
         <button data-f="prev" class="fnav" title="Previous frame (,)">‹</button>
-        <button data-f="play" class="playbtn" title="Play / pause (F)">▶</button>
+        <button data-f="play" class="playbtn" title="Play / pause (F)">▶︎</button>
         <button data-f="next" class="fnav" title="Next frame (.)">›</button>
         <span class="framelabel" id="framelabel"></span>
         <label title="Playback speed">FPS <input type="number" id="fps" min="1" max="60"></label>

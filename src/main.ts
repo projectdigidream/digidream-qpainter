@@ -9,6 +9,7 @@ import { MESHES, createPreview, previewOpts, type PaintEvent } from './preview3d
 import { cancelFloat, clearSel, commitFloat, copySel, makeTools, opts, pasteClip, pattern, setClipboard, transformSel, type P, type Tool } from './tools';
 import { View, viewOpts } from './view';
 import { startEmbed, type Embed } from './host';
+import { toolIcon } from './icons';
 import { aseFps, readAseprite } from './aseprite';
 import { FACES, SKY_DEFAULTS, SKY_KINDS, THREE_FACE_NAMES, engineName, faceRects, fitsSky, setSkyLine, skyLine, skyPictures, skySize, type SkyKind } from './sky';
 
@@ -20,14 +21,14 @@ let tools = makeTools(doc, () => refreshPalette());
 let current = 'pencil';
 let altHeld = false;
 
-const TOOLS: [string, string, string, string][] = [
-  // id, icon, key, title
-  ['pencil', '✏️', 'p', 'Pencil'], ['brush', '🖌️', 'b', 'Soft brush'], ['eraser', '🧽', 'e', 'Eraser'],
-  ['dither', '▦', 'd', 'Dither brush'], ['shade', '◐', 'h', 'Ramp shade brush'], ['noise', '⁘', 'n', 'Noise / scatter'],
-  ['replace', '⇄', 'r', 'Replace color brush'], ['smooth', '≈', 'a', 'Smooth / AA helper'],
-  ['line', '╱', 'l', 'Line (Shift = 45°)'], ['rect', '▭', 'u', 'Rectangle (Shift = square)'], ['ellipse', '◯', 'c', 'Ellipse (Shift = circle)'],
-  ['fill', '🪣', 'g', 'Fill'], ['gradient', '▤', 'j', 'Dithered gradient'], ['picker', '💧', 'i', 'Eyedropper (or hold Alt)'],
-  ['select', '⬚', 'm', 'Select'], ['move', '✥', 'v', 'Move selection / offset layer (O)'],
+const TOOLS: [string, string, string][] = [
+  // id, key, title (the icon is icons.ts's, by id)
+  ['pencil', 'p', 'Pencil'], ['brush', 'b', 'Soft brush'], ['eraser', 'e', 'Eraser'],
+  ['dither', 'd', 'Dither brush'], ['shade', 'h', 'Ramp shade brush'], ['noise', 'n', 'Noise / scatter'],
+  ['replace', 'r', 'Replace color brush'], ['smooth', 'a', 'Smooth / AA helper'],
+  ['line', 'l', 'Line (Shift = 45°)'], ['rect', 'u', 'Rectangle (Shift = square)'], ['ellipse', 'c', 'Ellipse (Shift = circle)'],
+  ['fill', 'g', 'Fill'], ['gradient', 'j', 'Dithered gradient'], ['picker', 'i', 'Eyedropper (or hold Alt)'],
+  ['select', 'm', 'Select'], ['move', 'v', 'Move selection / offset layer (O)'],
 ];
 
 const view = new View($<HTMLCanvasElement>('#view'), () => doc,
@@ -89,7 +90,7 @@ function play(on: boolean) {
       frameLabel(playFrame);
     }, 1000 / doc.fps);
   } else showFrame(doc.frame);
-  $$<HTMLButtonElement>('.playbtn').forEach((b) => (b.textContent = playTimer ? '❚❚' : '▶'));
+  $$<HTMLButtonElement>('.playbtn').forEach((b) => (b.textContent = playTimer ? '❚❚' : '▶\uFE0E')); // \uFE0E: never the emoji
   frameLabel(doc.frame);
   view.render();
 }
@@ -199,9 +200,9 @@ function setDoc(d: Doc) {
 
 // ---------- tools + options ----------
 const nav = $('#tools');
-for (const [id, icon, key, title] of TOOLS) {
+for (const [id, key, title] of TOOLS) {
   const b = document.createElement('button');
-  Object.assign(b, { textContent: icon, title: `${title} (${key.toUpperCase()})` });
+  Object.assign(b, { innerHTML: toolIcon(id), title: `${title} (${key.toUpperCase()})` });
   b.dataset.tool = id;
   b.onclick = () => setTool(id);
   nav.appendChild(b);
@@ -215,6 +216,7 @@ function setTool(id: string) {
   current = id;
   $$('#tools button').forEach((b) => b.classList.toggle('on', b.dataset.tool === id));
   $$('#opts [data-for]').forEach((el) => (el.style.display = el.dataset.for!.split(' ').includes(id) ? '' : 'none'));
+  $('#optshead').textContent = TOOLS.find((t) => t[0] === id)![2].replace(/ \(.*\)$/, '');
 }
 
 type Opts = typeof opts;
@@ -245,7 +247,7 @@ function drawPattern() {
       g.fillStyle = hex(p.t[(y % p.n) * p.n + (x % p.n)] < (opts.pattern === 'checker' || opts.pattern === 'custom' ? 0.5 : opts.density) ? opts.primary : opts.secondary);
       g.fillRect(x, y, 1, 1);
     }
-  $('#patwarn').textContent = doc.settings.wrap && (doc.w % p.n || doc.h % p.n) ? `⚠ ${p.n}px pattern won't tile at ${doc.w}×${doc.h}` : '';
+  $('#patwarn').textContent = doc.settings.wrap && (doc.w % p.n || doc.h % p.n) ? `⚠\uFE0E ${p.n}px pattern won't tile at ${doc.w}×${doc.h}` : '';
 }
 patCv.onclick = (e) => {
   if (opts.pattern !== 'custom') return setOpt('pattern', 'custom');
@@ -329,6 +331,10 @@ function syncHeader() {
   $<HTMLSelectElement>('#sym').value = s.sym;
   $('#radial').value = String(s.radial);
   $('#radial').style.display = s.sym === 'radial' ? '' : 'none';
+  // settings that only mean something while another is on show only then
+  $('#tiles').style.display = s.wrap && !s.sky ? '' : 'none';
+  $('#symc').style.display = s.sym !== 'none' ? '' : 'none';
+  $('#snap').style.display = s.lock ? '' : 'none';
   $<HTMLSelectElement>('#snap').value = s.snap;
   $<HTMLSelectElement>('#sky').value = s.sky ?? '';
   // only the settings the engine reads for this kind (server/src/sky.hpp)
@@ -611,7 +617,7 @@ addEventListener('keydown', (e) => {
     if (acts[k]) { e.preventDefault(); acts[k](); }
     return; // Ctrl+V goes through the paste event (handles OS clipboard images too)
   }
-  const tool = TOOLS.find((x) => x[2] === k);
+  const tool = TOOLS.find((x) => x[1] === k);
   if (tool) return setTool(tool[0]);
   const keys: Record<string, () => void> = {
     o: () => setTool('move'),
