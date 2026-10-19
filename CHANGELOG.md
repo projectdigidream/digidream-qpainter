@@ -5,6 +5,12 @@ anything not released yet is under **Unreleased**.
 
 ## Unreleased
 
+### Added
+
+- **Every slider has a number box beside it** (size, hardness, opacity, the
+  pattern's offsets and density, tolerance, noise, a layer's opacity): it shows
+  the value, and a value typed in moves the slider, kept to its step and limits.
+
 ## 0.2.0 -- 2026-10-17
 
 ### Fixed

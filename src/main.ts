@@ -219,6 +219,30 @@ function setTool(id: string) {
   $('#optshead').textContent = TOOLS.find((t) => t[0] === id)![2].replace(/ \(.*\)$/, '');
 }
 
+// EVERY SLIDER HAS A NUMBER BOX beside it: its value, and a value typed in
+// (Enter or leaving the box; a decimal comma is a point) lands on the slider's
+// step and limits and moves it, as a drag would.
+const boxes = new WeakMap<HTMLInputElement, HTMLInputElement & { sync(): void }>();
+function typedBox(r: HTMLInputElement) {
+  let b = boxes.get(r);
+  if (b) return b;
+  b = Object.assign(document.createElement('input'), { type: 'text', inputMode: 'decimal', className: 'num', value: r.value, title: 'Type a value' }) as HTMLInputElement & { sync(): void };
+  const box = b;
+  box.sync = () => { if (document.activeElement !== box) box.value = r.value; };
+  box.onfocus = () => box.select();
+  box.onkeydown = (e) => { if (e.key === 'Enter') box.blur(); };
+  box.onclick = (e) => e.stopPropagation();
+  box.onchange = () => {
+    const v = +box.value.trim().replace(',', '.');
+    if (box.value.trim() !== '' && Number.isFinite(v)) { r.value = String(v); r.dispatchEvent(new Event('input')); r.dispatchEvent(new Event('change')); }
+    box.value = r.value;
+  };
+  r.addEventListener('input', box.sync);
+  r.after(box);
+  boxes.set(r, box);
+  return box;
+}
+
 type Opts = typeof opts;
 function setOpt<K extends keyof Opts>(k: K, v: Opts[K]) { opts[k] = v; syncOpts(); }
 function syncOpts() {
@@ -226,7 +250,7 @@ function syncOpts() {
     const v = opts[el.dataset.opt as keyof Opts];
     if (el.type === 'checkbox') el.checked = !!v; else el.value = String(v);
   }
-  for (const o of $$<HTMLOutputElement>('[data-out]')) o.value = String(opts[o.dataset.out as keyof Opts]);
+  for (const r of $$<HTMLInputElement>('#opts input[type=range]')) typedBox(r).sync();
   drawPattern();
   view.render();
 }
@@ -300,6 +324,7 @@ function renderLayers() {
     vis.onchange = () => { l.visible = vis.checked; doc.changed(true); };
     if (op) op.oninput = () => { l.opacity = +op.value; doc.changed(); };
     if (op) op.onchange = () => doc.changed(true);
+    if (op) typedBox(op);
   });
   el.querySelectorAll<HTMLButtonElement>('[data-l]').forEach((b) => (b.onclick = () => layerOp(b.dataset.l!)));
 }

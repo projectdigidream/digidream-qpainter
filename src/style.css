@@ -45,6 +45,8 @@ label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap
 /* a select whose options are long (Skybox) shrinks to the panel instead of running past its edge */
 #sky { flex: 1; min-width: 0; }
 #opts input[type=range] { flex: 1; min-width: 0; }
+/* the number box beside every slider (main.ts typedBox) */
+input.num { width: 3.5em; flex: 0 0 3.5em; min-width: 0; box-sizing: border-box; text-align: right; font-variant-numeric: tabular-nums; }
 .hint { margin: 0; color: var(--dim); }
 .row { display: flex; gap: 6px; align-items: center; }
 .wrap { flex-wrap: wrap; }
