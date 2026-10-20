@@ -41,6 +41,9 @@ export function setHostSave(f: typeof hostSave) { hostSave = f; }
 /** And where a file it opens comes from (host.ts onOpen): that app's file picker. Null when cancelled. */
 let hostOpen: ((accept: string) => Promise<{ name: string; bytes: Uint8Array } | null>) | null = null;
 export function setHostOpen(f: typeof hostOpen) { hostOpen = f; }
+/** And questions about the project around it (host.ts onQuery): the module's palette, its textures. Null outside a host. */
+export let hostQuery: ((what: string, arg?: unknown) => Promise<any>) | null = null;
+export function setHostQuery(f: typeof hostQuery) { hostQuery = f; }
 
 const toB64 = (b: Blob) => new Promise<string>((res) => {
   const r = new FileReader();

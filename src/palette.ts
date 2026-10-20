@@ -1,5 +1,5 @@
 import type { Doc } from './doc';
-import { saveAs, pickFile, blobToImageData } from './io';
+import { saveAs, pickFile, blobToImageData, hostQuery } from './io';
 import { eq, extractPalette, remap, type RGBA } from './paint';
 import { readAseprite } from './aseprite';
 import { opts } from './tools';
@@ -103,11 +103,14 @@ export function renderPalette(el: HTMLElement, doc: Doc, refresh: () => void) {
       <button id="sort" title="Sort by lightness">Sort</button>
       <select id="pimp" title="Load colours from a palette file (.gpl .hex .pal), an image, or a qPainter project">
         <option value="">Import…</option><option value="replace">Replace palette…</option><option value="add">Add to palette…</option>
+        ${hostQuery ? `<optgroup label="From the module"><option value="replace:module">Replace with the module's palette</option><option value="add:module">Add the module's palette</option>
+        <option value="replace:texture">Replace with a texture's colours…</option><option value="add:texture">Add a texture's colours…</option></optgroup>` : ''}
       </select>
       <select id="pexp" title="Save the palette, or just the colours this texture uses (all layers and frames)">
         <option value="">Export…</option>
         <optgroup label="Whole palette"><option value="all:gpl">.gpl (GIMP, Aseprite)</option><option value="all:hex">.hex (Lospec)</option><option value="all:pal">.pal (JASC)</option><option value="all:png">.png swatches</option></optgroup>
         <optgroup label="Colours used in the texture"><option value="used:gpl">.gpl (GIMP, Aseprite)</option><option value="used:hex">.hex (Lospec)</option><option value="used:pal">.pal (JASC)</option><option value="used:png">.png swatches</option></optgroup>
+        ${hostQuery ? '<optgroup label="The module"><option value="all:module">As the module\'s palette (the other tools paint from it)</option></optgroup>' : ''}
       </select>
       <button id="ext" title="Replace palette with colors from the image">Extract</button>
       <select id="remap" title="Quantize active layer to palette">
@@ -153,19 +156,31 @@ export function renderPalette(el: HTMLElement, doc: Doc, refresh: () => void) {
   $('del').onclick = () => { doc.palette = doc.palette.filter((c) => !eq(c, opts.primary)); refresh(); };
   $('sort').onclick = () => { doc.palette.sort((a, b) => lum(a) - lum(b)); refresh(); };
   $('pexp').onchange = async () => {
-    const [which, fmt] = $('pexp').value.split(':') as ['all' | 'used', 'gpl' | 'hex' | 'pal' | 'png'];
+    const [which, fmt] = $('pexp').value.split(':') as ['all' | 'used', 'gpl' | 'hex' | 'pal' | 'png' | 'module'];
     $('pexp').value = '';
     if (!fmt) return;
     const cols = which === 'used' ? usedColors(doc.palette, framePixels(doc)) : doc.palette;
     if (!cols.length) return alert('The texture has no opaque pixels yet, so it uses no colours.');
+    if (fmt === 'module') return toModule(doc).catch((e) => alert(`Couldn't set the module's palette: ${e.message}`));
     const name = `${doc.name}-${which === 'used' ? 'used' : 'palette'}`;
     const blob = fmt === 'png' ? await toPng(cols) : new Blob([fmt === 'gpl' ? toGpl(cols, name) : fmt === 'hex' ? toHex(cols) : toPal(cols)]);
     saveAs(blob, name, fmt).catch((e) => alert(e.message));
   };
   $('pimp').onchange = async () => {
-    const mode = $('pimp').value;
+    const [mode, from] = $('pimp').value.split(':');
     $('pimp').value = '';
     if (!mode) return;
+    if (from) {
+      try {
+        const got = from === 'module' ? await fromModule() : await fromTexture();
+        if (!got) return;
+        if (mode === 'replace') { doc.palette = got.colors; doc.ramps = got.ramps; } else { addColors(got.colors); doc.ramps.push(...got.ramps); }
+        refresh();
+      } catch (e) {
+        alert(`Couldn't read the module: ${(e as Error).message}`);
+      }
+      return;
+    }
     const f = await pickFile('.gpl,.hex,.pal,.txt,.json,.aseprite,.ase,image/*');
     if (!f) return;
     try {
@@ -191,6 +206,61 @@ export function renderPalette(el: HTMLElement, doc: Doc, refresh: () => void) {
   $('rhs').onclick = () => { const r = hueShiftRamp(opts.primary, +$('rn').value, +$('rh').value); doc.ramps.push(r); addColors(r); opts.ramp = doc.ramps.length - 1; refresh(); };
   $('rl').onclick = () => { const r = lerpRamp(opts.primary, opts.secondary, Math.max(2, +$('rn').value * 2 + 1)); doc.ramps.push(r); addColors(r); opts.ramp = doc.ramps.length - 1; refresh(); };
   updateStats(el, doc);
+}
+
+// ---------- the module's palette and textures (inside a host app: host.ts onQuery) ----------
+// The module palette is the digidream-palette file every tool of the module paints
+// from (INTEGRATION.md C2): colours '#rrggbb', ramps as indices into them, dark to light.
+
+type PaletteFile = { format?: string; version?: number; name?: string; colors: string[]; ramps?: { name: string; indices: number[] }[] };
+
+/** The module's palette as colours and ramps, or null (with a word) when it has none. */
+async function fromModule(): Promise<{ colors: RGBA[]; ramps: RGBA[][] } | null> {
+  const p = (await hostQuery!('palette')) as PaletteFile | null;
+  if (!p?.colors?.length) { alert('This module has no palette yet. Export… → "As the module\'s palette" gives it this one.'); return null; }
+  if ((p.version ?? 1) > 1) throw new Error(`its palette file is version ${p.version}, newer than qPainter reads`);
+  const colors = p.colors.map(fromHex);
+  return { colors, ramps: (p.ramps ?? []).map((r) => r.indices.map((i) => colors[i])).filter((r) => r.length && r.every(Boolean)) };
+}
+
+/** The colours of one of the module's textures: its project's palette, or the colours of its picture. */
+async function fromTexture(): Promise<{ colors: RGBA[]; ramps: RGBA[][] } | null> {
+  const list = (await hostQuery!('list', 'file:texture')) as { key: string; name: string }[];
+  if (!list.length) { alert('This module has no textures yet.'); return null; }
+  const key = await choose('Take the colours of which texture?', list.map((t) => t.key));
+  if (!key) return null;
+  const bytes = (await hostQuery!('read', { kind: 'file:texture', key })) as Uint8Array;
+  const png = bytes[0] === 0x89 && bytes[1] === 0x50;
+  const colors = png ? extractPalette(await blobToImageData(new Blob([bytes as BlobPart], { type: 'image/png' })), 256) : parsePalette(new TextDecoder().decode(bytes));
+  if (!colors.length) { alert(`No colours found in ${key}.`); return null; }
+  return { colors, ramps: [] };
+}
+
+/** This texture's palette and ramps become the module's palette; keys the file has that qPainter doesn't own are kept. */
+async function toModule(doc: Doc) {
+  const colors: string[] = [];
+  for (const c of doc.palette) { const h = hex(c); if (!colors.includes(h)) colors.push(h); }
+  if (!colors.length || colors.length > 256) throw new Error(`a module palette has 1 to 256 colours, this one has ${colors.length}`);
+  const was = ((await hostQuery!('palette')) ?? {}) as Partial<PaletteFile>;
+  if ((was.version ?? 1) > 1) throw new Error(`the module's palette file is version ${was.version}, newer than qPainter writes`);
+  // a ramp whose colours are all in the palette, as indices (others are left out: the file can't hold them)
+  const ramps = doc.ramps.map((r, i) => ({ name: `ramp ${i + 1}`, indices: r.map((c) => colors.indexOf(hex(c))) })).filter((r) => r.indices.every((i) => i >= 0));
+  const { format, version, name, colors: _c, ramps: _r, ...rest } = was;
+  if (!(await hostQuery!('set-palette', { format: 'digidream-palette', version: 1, name: name || doc.name, colors, ramps, ...rest }))) return;
+  alert(`The module's palette is now these ${colors.length} colours${ramps.length ? ` and ${ramps.length} ramp${ramps.length > 1 ? 's' : ''}` : ''}.`);
+}
+
+/** Pick one of `names` in a small dialog (no prompt(): a host app may not have it); null when closed. */
+function choose(title: string, names: string[]): Promise<string | null> {
+  const d = document.createElement('dialog');
+  d.style.cssText = 'border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);padding:12px;width:min(360px,92vw);max-height:80dvh';
+  d.innerHTML = `<b>${title}</b><div style="display:flex;flex-direction:column;gap:4px;margin:10px 0;overflow:auto;max-height:60dvh">${names.map((n) => `<button data-n="${n.replace(/"/g, '&quot;')}" style="text-align:left">${n.replace(/</g, '&lt;')}</button>`).join('')}</div><div style="text-align:right"><button data-n="">Cancel</button></div>`;
+  document.body.appendChild(d);
+  return new Promise((res) => {
+    d.onclick = (e) => { const n = (e.target as HTMLElement).closest('button')?.dataset.n; if (n !== undefined) { d.close(); res(n || null); } };
+    d.onclose = () => { d.remove(); res(null); };
+    d.showModal();
+  });
 }
 
 /** Unique colors in the image and how many are off-palette. */

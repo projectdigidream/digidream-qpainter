@@ -15,12 +15,15 @@
 //   onSave(fn)          every file it writes (exports, palettes) handed to fn(bytes, name)
 //                       instead of downloaded: a frame cannot download on a phone
 //   onOpen(fn)          every file it opens taken from fn(accept) -> { name, bytes } | null
+//   onQuery(fn)         questions about the project around it, fn(what, arg) -> answer: the palette's
+//                       Import and Export reach the module's palette and textures through it
+//                       ('palette', 'set-palette', 'list' 'file:texture', 'read' {kind, key})
 //
 // The host speaks its own protocol to it (in the suite, a small shim that
 // loads before this page's script). Nothing here knows any host's protocol.
 
 import { Doc } from './doc';
-import { blobToImageData, loadProject, projectBlob, setHostOpen, setHostSave } from './io';
+import { blobToImageData, loadProject, projectBlob, setHostOpen, setHostQuery, setHostSave } from './io';
 import { SKY_DEFAULTS, skySize, type SkyKind } from './sky';
 
 export interface EmbedHooks {
@@ -69,6 +72,8 @@ export function startEmbed(h: EmbedHooks): Embed | null {
     onSave(fn: (bytes: Uint8Array, name: string) => Promise<boolean>) { setHostSave(fn); },
     /** Every file it opens (an image, a palette, a model) comes from fn(accept) -> { name, bytes } | null instead of a file input. */
     onOpen(fn: (accept: string) => Promise<{ name: string; bytes: Uint8Array } | null>) { setHostOpen(fn); },
+    /** Questions about the project around qPainter (its palette, its textures): the palette's Import and Export use them. */
+    onQuery(fn: (what: string, arg?: unknown) => Promise<unknown>) { setHostQuery(fn); },
   };
   (window as unknown as { qpainterEmbed: typeof api }).qpainterEmbed = api;
   window.dispatchEvent(new Event('qpainter-embed'));

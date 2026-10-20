@@ -15,6 +15,11 @@ anything not released yet is under **Unreleased**.
 
 ### Added
 
+- **The palette reaches the module's palette and textures** inside the
+  studio. Export… → "As the module's palette" makes this texture's colours
+  and ramps the palette every tool of the module paints from (ThreeSprite
+  too). Import… → "From the module" takes that palette back, or the colours of
+  any of the module's textures. The embed API has onQuery(fn) for it.
 - **Every slider has a number box beside it** (size, hardness, opacity, the
   pattern's offsets and density, tolerance, noise, a layer's opacity): it shows
   the value, and a value typed in moves the slider, kept to its step and limits.
