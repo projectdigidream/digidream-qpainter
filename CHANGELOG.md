@@ -5,7 +5,9 @@ anything not released yet is under **Unreleased**.
 
 ## Unreleased
 
-## 0.2.0.1 -- 2026-10-20
+## 0.2.1 -- 2026-10-20
+
+First out as the dev release 0.2.0.1.
 
 ### Fixed
 
