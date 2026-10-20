@@ -5,6 +5,14 @@ anything not released yet is under **Unreleased**.
 
 ## Unreleased
 
+### Fixed
+
+- **Inside another app on a phone, exporting and importing did nothing**
+  (a palette, a PNG, an image to trace): a page in a frame cannot download or
+  open a file picker there. The embed API has onSave(fn) and onOpen(fn), and
+  the host's own save and file picker are used instead (the studio's system
+  dialogs).
+
 ### Added
 
 - **Every slider has a number box beside it** (size, hardness, opacity, the

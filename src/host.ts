@@ -12,12 +12,15 @@
 //                       the New menu is hidden and Electron has no prompt()
 //   bytes()             the texture as a project, the way Save writes one
 //   onChange(fn)        called after every finished edit; returns an unsubscribe
+//   onSave(fn)          every file it writes (exports, palettes) handed to fn(bytes, name)
+//                       instead of downloaded: a frame cannot download on a phone
+//   onOpen(fn)          every file it opens taken from fn(accept) -> { name, bytes } | null
 //
 // The host speaks its own protocol to it (in the suite, a small shim that
 // loads before this page's script). Nothing here knows any host's protocol.
 
 import { Doc } from './doc';
-import { blobToImageData, loadProject, projectBlob } from './io';
+import { blobToImageData, loadProject, projectBlob, setHostOpen, setHostSave } from './io';
 import { SKY_DEFAULTS, skySize, type SkyKind } from './sky';
 
 export interface EmbedHooks {
@@ -62,6 +65,10 @@ export function startEmbed(h: EmbedHooks): Embed | null {
       listeners.add(fn);
       return () => listeners.delete(fn);
     },
+    /** Every file qPainter writes (an export, a palette) goes to fn(bytes, name) instead of a download; fn answers false when cancelled. */
+    onSave(fn: (bytes: Uint8Array, name: string) => Promise<boolean>) { setHostSave(fn); },
+    /** Every file it opens (an image, a palette, a model) comes from fn(accept) -> { name, bytes } | null instead of a file input. */
+    onOpen(fn: (accept: string) => Promise<{ name: string; bytes: Uint8Array } | null>) { setHostOpen(fn); },
   };
   (window as unknown as { qpainterEmbed: typeof api }).qpainterEmbed = api;
   window.dispatchEvent(new Event('qpainter-embed'));

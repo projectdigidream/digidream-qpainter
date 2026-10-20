@@ -31,6 +31,17 @@ const native = Capacitor.isNativePlatform();
 const w = globalThis as any; // File System Access API isn't in TS's DOM types yet
 const aborted = (e: unknown) => (e as Error)?.name === 'AbortError';
 
+/**
+ * Where a file qPainter writes goes when it runs inside another app (host.ts
+ * onSave): that app's own save, since a page in a frame cannot download on a
+ * phone. False when the user cancelled.
+ */
+let hostSave: ((bytes: Uint8Array, name: string) => Promise<boolean>) | null = null;
+export function setHostSave(f: typeof hostSave) { hostSave = f; }
+/** And where a file it opens comes from (host.ts onOpen): that app's file picker. Null when cancelled. */
+let hostOpen: ((accept: string) => Promise<{ name: string; bytes: Uint8Array } | null>) | null = null;
+export function setHostOpen(f: typeof hostOpen) { hostOpen = f; }
+
 const toB64 = (b: Blob) => new Promise<string>((res) => {
   const r = new FileReader();
   r.onload = () => res((r.result as string).split(',')[1]);
@@ -47,6 +58,8 @@ export function pickFile(accept: string): Promise<File | null> {
   return pickFiles(accept, false).then((f) => f[0] ?? null);
 }
 export function pickFiles(accept: string, multiple = true): Promise<File[]> {
+  // ponytail: one file at a time from a host picker; ask for more when a host can give several
+  if (hostOpen) return hostOpen(accept).then((f) => (f ? [new File([f.bytes as BlobPart], f.name)] : []));
   return new Promise((res) => {
     const i = Object.assign(document.createElement('input'), { type: 'file', accept, multiple });
     i.onchange = () => res([...(i.files ?? [])]);
@@ -81,14 +94,16 @@ export async function writeToModule(files: { name: string; blob: Blob }[], editM
     await writeHandle(mod, new Blob([editModule(await (await mod.getFile()).text())], { type: 'text/plain' }));
     return 'module';
   }
-  for (const f of files) download(f.blob, f.name);
+  for (const f of files) await download(f.blob, f.name);
   return 'download';
 }
 
-function download(blob: Blob, name: string) {
+async function download(blob: Blob, name: string) {
+  if (hostSave) return hostSave(new Uint8Array(await blob.arrayBuffer()), name);
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return true;
 }
 
 /**
@@ -98,6 +113,7 @@ function download(blob: Blob, name: string) {
 export async function saveAs(blob: Blob, name: string, kind: FileKind): Promise<{ ref: FileRef | null; name: string } | null> {
   const k = KINDS[kind];
   if (!name.endsWith(k.ext)) name += k.ext;
+  if (hostSave) return (await download(blob, name)) ? { ref: null, name } : null;
   if (native) {
     const r = await Files.create({ name, mime: k.mime, data: await toB64(blob) });
     return r.uri ? { ref: { uri: r.uri }, name: r.name ?? name } : null;
