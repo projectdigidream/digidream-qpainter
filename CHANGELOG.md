@@ -5,6 +5,8 @@ anything not released yet is under **Unreleased**.
 
 ## Unreleased
 
+## 0.2.0.1 -- 2026-10-20
+
 ### Fixed
 
 - **Inside another app on a phone, exporting and importing did nothing**
